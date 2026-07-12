@@ -46,6 +46,7 @@ HELP = (
     "• /list — мої товари (кнопки: відкрити / історія / видалити)\n"
     "• /remove &lt;id&gt; — прибрати товар\n"
     "• /check — перевірити всі зараз\n"
+    "• /clear — очистити чат від повідомлень\n"
     "• /history &lt;id&gt; — історія цін\n"
     "• /help — ця довідка"
 )
@@ -194,6 +195,44 @@ async def scheduled_check(context: ContextTypes.DEFAULT_TYPE):
     logger.info("scheduled check done")
 
 
+async def clear_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Чистит чат: удаляет сообщения от текущего вниз (сколько сможет).
+
+    Telegram позволяет боту удалять только сообщения не старше 48 часов.
+    Идём по message_id вниз и молча пропускаем то, что удалить нельзя.
+    """
+    chat_id = update.effective_chat.id
+    last_id = update.message.message_id
+    deleted = 0
+    # проходим окно из последних сообщений (id уменьшаем)
+    for mid in range(last_id, max(0, last_id - 200), -1):
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=mid)
+            deleted += 1
+        except Exception:  # noqa: BLE001
+            # сообщение чужое/старше 48ч/уже удалено/не существует — пропускаем
+            continue
+    note = await context.bot.send_message(
+        chat_id=chat_id,
+        text=(f"🧹 Очищено повідомлень: {deleted}.\n"
+              "ℹ️ Telegram не дає видаляти повідомлення старші 48 годин."),
+    )
+    # удалить и это уведомление через 5 секунд
+    context.job_queue.run_once(
+        _delete_later, when=5,
+        data={"chat_id": chat_id, "message_id": note.message_id},
+        name=f"clr_note_{note.message_id}",
+    )
+
+
+async def _delete_later(context: ContextTypes.DEFAULT_TYPE):
+    d = context.job.data
+    try:
+        await context.bot.delete_message(chat_id=d["chat_id"], message_id=d["message_id"])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 # --- Callback-обработчики (кнопки списка) ---
 async def cb_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -256,6 +295,7 @@ async def post_init(app: Application):
         BotCommand("add", "➕ Додати товар за посиланням"),
         BotCommand("list", "📋 Мої товари"),
         BotCommand("check", "🔄 Перевірити всі ціни зараз"),
+        BotCommand("clear", "🧹 Очистити чат"),
         BotCommand("history", "📜 Історія цін (/history <id>)"),
         BotCommand("remove", "🗑 Прибрати товар (/remove <id>)"),
         BotCommand("help", "❓ Довідка"),
@@ -277,6 +317,7 @@ def main():
     app.add_handler(CommandHandler("remove", remove_cmd))
     app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CommandHandler("check", check_cmd))
+    app.add_handler(CommandHandler("clear", clear_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
     app.add_handler(CallbackQueryHandler(cb_del, pattern="^del:"))
