@@ -18,6 +18,8 @@ import logging
 import os
 import re
 
+from dotenv import load_dotenv
+
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -29,6 +31,8 @@ import monitor
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("price_check.bot")
+
+load_dotenv()  # подгружает BOT_TOKEN, CHECK_INTERVAL_HOURS, DB_PATH из .env
 
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
