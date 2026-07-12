@@ -147,8 +147,14 @@ def _item_view(it):
 
 
 async def _send_list(target, context: ContextTypes.DEFAULT_TYPE, items):
-    """Шлёт заголовок + отдельное сообщение на каждый товар (кнопки под названием)."""
-    items = sorted(items, key=lambda r: (r["title"] or r["url"]).lower())
+    """Шлёт заголовок + отдельное сообщение на каждый товар (кнопки под названием).
+    Сортировка по названию товара БЕЗ хвоста-магазина (чтобы одинаковые группировались)."""
+    def _sort_key(it):
+        title = (it["title"] or it["url"])
+        # отрезаем добавленный в конце " — магазин" / " | магазин"
+        base = re.sub(r"\s*[—|]\s*[^\s—|]+$", "", title).strip()
+        return base.lower()
+    items = sorted(items, key=_sort_key)
     await target.reply_text(f"📋 <b>Ваші товари ({len(items)}):</b>", parse_mode="HTML")
     for it in items:
         text, markup = _item_view(it)
