@@ -23,8 +23,10 @@ CURRENCY_MAP = {
     "zł": "PLN", "pln": "PLN", "злот": "PLN",
 }
 
-# Символы, которые ищем «рядом» с числом
-CURRENCY_SYMBOLS = ["₴", "$", "€", "₽", "zł"]
+# Маркери валюти: символи + слова (шукаємо число поряд)
+CURRENCY_MARKERS = ["₴", "$", "€", "₽", "zł",
+                    "грн", "грив", "руб", "дол", "євро", "евро",
+                    "uah", "usd", "eur", "rub", "pln"]
 
 
 def _to_float(raw: str) -> float | None:
@@ -61,18 +63,23 @@ def _currency_from_text(text: str) -> str | None:
     return None
 
 
-def _amount_near_symbol(text: str) -> tuple[float | None, str | None]:
-    """Берём число рядом с валютным символом."""
-    for sym in CURRENCY_SYMBOLS:
-        idx = text.find(sym)
+def _amount_near_currency(text: str) -> tuple[float | None, str | None]:
+    """Берём число рядом с маркером валюты (символ або слово)."""
+    low = text.lower()
+    for marker in CURRENCY_MARKERS:
+        is_word = marker.isalpha()
+        idx = low.find(marker) if is_word else text.find(marker)
         while idx != -1:
-            window = text[max(0, idx - 18): idx + 18]
+            start = max(0, idx - 18)
+            end = min(len(text), idx + len(marker) + 18)
+            window = text[start:end]
             m = re.search(r"\d[\d\s]*[.,]?\d{0,2}", window)
             if m:
                 amt = _to_float(m.group(0))
                 if amt:
                     return amt, _currency_from_text(window)
-            idx = text.find(sym, idx + 1)
+            idx = (low.find(marker, idx + len(marker)) if is_word
+                   else text.find(marker, idx + len(marker)))
     return None, None
 
 
@@ -159,7 +166,7 @@ def _from_selectors(soup: BeautifulSoup) -> tuple[float | None, str | None]:
         text = text.strip()
         if not text:
             continue
-        amt, cur = _amount_near_symbol(text)
+        amt, cur = _amount_near_currency(text)
         if amt is None:
             amt = _to_float(text)
             cur = _currency_from_text(text)
@@ -171,7 +178,7 @@ def _from_selectors(soup: BeautifulSoup) -> tuple[float | None, str | None]:
 def _from_text(soup: BeautifulSoup) -> tuple[float | None, str | None]:
     # видимый текст страницы
     text = soup.get_text(" ", strip=True)
-    amt, cur = _amount_near_symbol(text)
+    amt, cur = _amount_near_currency(text)
     if amt is not None:
         return amt, cur
     return None, None
