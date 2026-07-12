@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import requests
 from datetime import datetime, timezone
 
@@ -33,6 +34,10 @@ HEADERS = {
 
 TIMEOUT = 25
 
+# Резидентный прокси для обхода Cloudflare Managed Challenge (напр. maudau.com.ua).
+# Берётся из .env (PROXY_URL). Пусто — без прокси.
+PROXY_URL = os.getenv("PROXY_URL", "").strip() or None
+
 PLAYWRIGHT_AVAILABLE = False
 try:
     from playwright.async_api import async_playwright
@@ -53,11 +58,17 @@ def _is_cloudflare(html: str) -> bool:
 async def _fetch_requests(url):
     try:
         r = await asyncio.to_thread(
-            requests.get, url, headers=HEADERS, timeout=TIMEOUT
+            requests.get, url, headers=HEADERS, timeout=TIMEOUT, proxies=_proxies()
         )
         return r, None
     except Exception as exc:  # noqa: BLE001
         return None, exc
+
+
+def _proxies():
+    if not PROXY_URL:
+        return None
+    return {"http": PROXY_URL, "https": PROXY_URL}
 
 
 async def _fetch_playwright(url):
@@ -65,10 +76,13 @@ async def _fetch_playwright(url):
         return None, "Playwright не встановлено"
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
-            )
+            launch_kwargs = {
+                "headless": True,
+                "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+            }
+            if PROXY_URL:
+                launch_kwargs["proxy"] = {"server": PROXY_URL}
+            browser = await p.chromium.launch(**launch_kwargs)
             ctx = await browser.new_context(
                 user_agent=HEADERS["User-Agent"],
                 locale="uk-UA",

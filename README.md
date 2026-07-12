@@ -7,7 +7,9 @@
 - 🔗 Додає на моніторинг **будь-яке** посилання (маркетплейси, магазини, рандомні сайти)
 - 🤖 Авто-визначення ціни зі сторінки (JSON-LD → meta-теги → CSS-селектори → регексп по валюті)
 - 🛡 Обхід Cloudflare: якщо сайт блокує (403 / «Just a moment»), ціна береться через headless-браузер (Playwright).
-  ⚠️ Жорсткий **Cloudflare Managed Challenge** (з Ray ID, як на maudau.com.ua) легко не обходиться — бот чесно повідомить «Cloudflare/защита сайта». Для таких сайтів потрібен окремий сервіс (FlareSolverr).
+  ⚠️ Жорсткий **Cloudflare Managed Challenge** (з Ray ID, як на maudau.com.ua) легко не обходиться — бот чесно повідомить «Cloudflare/защита сайта».
+  Причина: сервер з датацентрівським IP (Hetzner) режеться Cloudflare на рівні репутації підмережі. Перевірені методи, що **НЕ** працюють: requests+UA, Playwright, Playwright+stealth, SeleniumBase UC Mode, puppeteer/FlareSolverr.
+  ✅ Реально допомагає лише **резидентний проксі** (живий домашній IP) — див. налаштування `PROXY_URL` нижче.
 - ⏰ Періодична перевірка (кожні N годин, налаштовується)
 - 🔔 Сповіщення в Telegram при зміні/падінні ціни
 - 📜 Історія цін по кожному товару
@@ -59,6 +61,7 @@ systemctl enable --now price-check
 | `BOT_TOKEN` | — | токен від BotFather (обов'язково) |
 | `CHECK_INTERVAL_HOURS` | `6` | інтервал авто-перевірки, годин |
 | `DB_PATH` | `price_check.db` | файл бази SQLite |
+| `PROXY_URL` | _(порожньо)_ | резидентний HTTP(S)/SOCKS-проксі для обходу Cloudflare Managed Challenge (напр. `http://user:pass@host:port`). Без нього сайти на кшталт maudau.com.ua дадуть помилку. |
 
 ## Структура
 - `parser.py` — авто-детект ціни/назви з HTML

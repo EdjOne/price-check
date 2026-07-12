@@ -2,3 +2,8 @@
 *.db
 __pycache__/
 *.pyc
+.venv/
+downloaded_files/
+bot.log
+node_modules/
+flaresolverr_lite.js
