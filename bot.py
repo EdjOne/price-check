@@ -64,11 +64,19 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, chat_id):
     conn = context.bot_data["conn"]
+    # дедуп: якщо URL вже відстежується — не дублюємо
+    existing = conn.execute(
+        "SELECT id FROM items WHERE url = ? AND active = 1", (url,)
+    ).fetchone()
+    if existing:
+        await update.message.reply_text(
+            f"✅ Це посилання вже відстежується: #{existing['id']}"
+        )
+        return
     item_id = db.add_item(conn, url, str(chat_id))
     await update.message.reply_text(f"🔄 Перевіряю посилання #{item_id}…")
     item = db.get_item(conn, item_id)
-    # синхронная первая проверка
-    res = monitor.check_item(conn, item, bot=context.bot)
+    res = await monitor.check_item(conn, item, bot=context.bot)
     if res.get("ok"):
         if res.get("direction") == "new":
             await update.message.reply_text(
@@ -159,7 +167,7 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = context.bot_data["conn"]
     await update.message.reply_text("🔄 Перевіряю всі товари…")
-    results = monitor.check_all(conn, bot=context.bot)
+    results = await monitor.check_all(conn, bot=context.bot)
     changed = [r for r in results if r.get("changed")]
     await update.message.reply_text(
         f"Готово. Перевірено: {len(results)}, змін: {len(changed)}."
@@ -169,7 +177,7 @@ async def check_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def scheduled_check(context: ContextTypes.DEFAULT_TYPE):
     conn = context.bot_data["conn"]
     logger.info("scheduled check start")
-    monitor.check_all(conn, bot=context.bot)
+    await monitor.check_all(conn, bot=context.bot)
     logger.info("scheduled check done")
 
 

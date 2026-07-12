@@ -12,9 +12,18 @@ logger = logging.getLogger(__name__)
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,"
+              "image/webp,*/*;q=0.8",
+    "Accept-Language": "uk-UA,uk;q=0.9,ru;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Upgrade-Insecure-Requests": "1",
 }
 
 TIMEOUT = 25
@@ -30,7 +39,7 @@ def fetch(url: str) -> str | None:
         return None
 
 
-def check_item(conn, item, bot=None) -> dict:
+async def check_item(conn, item, bot=None) -> dict:
     """Проверяет один товар. Возвращает dict с результатом и шлёт алерт при изменении."""
     item_id = item["id"]
     url = item["url"]
@@ -65,7 +74,7 @@ def check_item(conn, item, bot=None) -> dict:
         result["direction"] = direction
 
         if bot is not None and item["chat_id"]:
-            _send_alert(bot, item, old, price, result["currency"], direction, title)
+            await _send_alert(bot, item, old, price, result["currency"], direction, title)
     else:
         # просто обновляем время проверки
         conn.execute("UPDATE items SET last_checked = ? WHERE id = ?",
@@ -75,7 +84,7 @@ def check_item(conn, item, bot=None) -> dict:
     return result
 
 
-def _send_alert(bot, item, old, new, currency, direction, title):
+async def _send_alert(bot, item, old, new, currency, direction, title):
     arrow = {"down": "🔻", "up": "🔺", "new": "🆕"}.get(direction, "")
     name = title or item["title"] or item["url"]
     if direction == "new":
@@ -90,17 +99,17 @@ def _send_alert(bot, item, old, new, currency, direction, title):
             f"🔗 {item['url']}"
         )
     try:
-        bot.send_message(chat_id=item["chat_id"], text=msg, parse_mode="HTML")
+        await bot.send_message(chat_id=item["chat_id"], text=msg, parse_mode="HTML")
     except Exception as exc:  # noqa: BLE001
         logger.warning("alert send failed %s: %s", item["chat_id"], exc)
 
 
-def check_all(conn, bot=None):
+async def check_all(conn, bot=None):
     items = db.all_active(conn)
     results = []
     for item in items:
         try:
-            results.append(check_item(conn, item, bot))
+            results.append(await check_item(conn, item, bot))
         except Exception as exc:  # noqa: BLE001
             logger.exception("check_item failed id=%s", item["id"])
             results.append({"id": item["id"], "ok": False, "error": str(exc)})
