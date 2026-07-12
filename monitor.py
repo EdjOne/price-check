@@ -29,27 +29,33 @@ HEADERS = {
 TIMEOUT = 25
 
 
-def fetch(url: str) -> str | None:
+def fetch(url: str) -> tuple[str | None, str | None]:
+    """Возвращает (html, error). error=None при успехе."""
     try:
         r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         r.raise_for_status()
-        return r.text
+        return r.text, None
+    except requests.HTTPError as e:
+        code = e.response.status_code if e.response is not None else "?"
+        reason = "Cloudflare/защита сайта" if code == 403 else f"HTTP {code}"
+        logger.warning("fetch failed %s: %s", url, reason)
+        return None, f"не удалося завантажити: {reason}"
     except Exception as exc:  # noqa: BLE001
         logger.warning("fetch failed %s: %s", url, exc)
-        return None
+        return None, f"не удалося завантажити: {exc}"
 
 
 async def check_item(conn, item, bot=None) -> dict:
     """Проверяет один товар. Возвращает dict с результатом и шлёт алерт при изменении."""
     item_id = item["id"]
     url = item["url"]
-    html = fetch(url)
+    html, err = fetch(url)
     result = {"id": item_id, "url": url, "ok": False, "changed": False,
               "old": item["last_price"], "new": None, "currency": item["currency"],
               "error": None}
 
     if not html:
-        result["error"] = "не удалось загрузить страницу"
+        result["error"] = err or "не удалося завантажити сторінку"
         return result
 
     price, currency, title = price_parser.extract(html, url)
