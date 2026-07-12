@@ -110,30 +110,28 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _add_url(update, context, m.group(0), update.effective_chat.id)
 
 
-async def _render_list(target_message, context: ContextTypes.DEFAULT_TYPE, items, edit=False):
-    """Рисует/обновляет список с inline-кнопками. Сортировка по названию товара.
+def _item_view(it):
+    """Возвращает (html_text, markup) для одного товара: название-ссылка + кнопки."""
+    price = f"{it['last_price']:.2f} {it['currency']}" if it["last_price"] is not None else "—"
+    name = (it["title"] or it["url"])[:70]
+    text = f'<a href="{it["url"]}">{name}</a>\n#{it["id"]} · <b>{price}</b>'
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton("📜 Історія", callback_data=f"hist:{it['id']}"),
+        InlineKeyboardButton("🗑 Видалити", callback_data=f"del:{it['id']}"),
+    ]])
+    return text, markup
 
-    edit=True — редактировать существующее сообщение (для колбэков кнопок).
-    edit=False — прислать новое (для команды /list).
-    """
+
+async def _send_list(target, context: ContextTypes.DEFAULT_TYPE, items):
+    """Шлёт заголовок + отдельное сообщение на каждый товар (кнопки под названием)."""
     items = sorted(items, key=lambda r: (r["title"] or r["url"]).lower())
-    lines = ["📋 <b>Ваші товари:</b>"]
-    kb = []
+    await target.reply_text(f"📋 <b>Ваші товари ({len(items)}):</b>", parse_mode="HTML")
     for it in items:
-        price = f"{it['last_price']:.2f} {it['currency']}" if it["last_price"] is not None else "—"
-        name = (it["title"] or it["url"])[:50]
-        lines.append(f"#{it['id']} · {price}\n   {name}")
-        kb.append([
-            InlineKeyboardButton("🔗", url=it["url"]),
-            InlineKeyboardButton("📜", callback_data=f"hist:{it['id']}"),
-            InlineKeyboardButton("🗑", callback_data=f"del:{it['id']}"),
-        ])
-    markup = InlineKeyboardMarkup(kb) if kb else None
-    text = "\n".join(lines)
-    if edit:
-        await target_message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-    else:
-        await target_message.reply_text(text, parse_mode="HTML", reply_markup=markup)
+        text, markup = _item_view(it)
+        await target.reply_text(
+            text, parse_mode="HTML", reply_markup=markup,
+            disable_web_page_preview=True,
+        )
 
 
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,7 +140,7 @@ async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not items:
         await update.message.reply_text("Список порожній. Надішліть посилання на товар 🛒")
         return
-    await _render_list(update.message, context, items)
+    await _send_list(update.message, context, items)
 
 
 async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -222,13 +220,11 @@ async def cb_dodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = context.bot_data["conn"]
     db.remove_item(conn, item_id)
     await q.answer("Видалено ✅")
-    items = db.list_items(conn, chat_id=q.message.chat_id)
-    if items:
-        await _render_list(q.message, context, items, edit=True)
-    else:
-        await q.message.edit_text(
-            "Список порожній. Надішліть посилання на товар 🛒", reply_markup=None
-        )
+    # просто убираем сообщение этого товара
+    try:
+        await q.message.delete()
+    except Exception:  # noqa: BLE001
+        await q.edit_message_text("🗑 Видалено.")
 
 
 async def cb_hist(update: Update, context: ContextTypes.DEFAULT_TYPE):
