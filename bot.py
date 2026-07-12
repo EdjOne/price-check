@@ -62,7 +62,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(HELP, parse_mode="HTML")
 
 
-async def _add_url(update: Update, url: str, chat_id):
+async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, chat_id):
     conn = context.bot_data["conn"]
     item_id = db.add_item(conn, url, str(chat_id))
     await update.message.reply_text(f"🔄 Перевіряю посилання #{item_id}…")
@@ -95,7 +95,7 @@ async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not URL_RE.match(url):
         await update.message.reply_text("Це не схоже на посилання (потрібен http/https).")
         return
-    await _add_url(update, url, update.effective_chat.id)
+    await _add_url(update, context, url, update.effective_chat.id)
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -105,7 +105,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Надішліть посилання на товар або /help.")
         return
     # если в сообщении несколько ссылок — берём первую
-    await _add_url(update, m.group(0), update.effective_chat.id)
+    await _add_url(update, context, m.group(0), update.effective_chat.id)
 
 
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -173,6 +173,10 @@ async def scheduled_check(context: ContextTypes.DEFAULT_TYPE):
     logger.info("scheduled check done")
 
 
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.warning("Update %s caused error: %s", update, context.error)
+
+
 def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
@@ -189,6 +193,7 @@ def main():
     app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CommandHandler("check", check_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+    app.add_error_handler(error_handler)
 
     # авто-проверка каждые N часов
     app.job_queue.run_repeating(
