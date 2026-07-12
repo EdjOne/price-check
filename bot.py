@@ -2,28 +2,25 @@
 
 Команды:
   /start, /help  — справка
-  /add <ссылка> — добавить товар на мониторинг
+  /add <ссылка> — добавить товар
   (или просто прислать ссылку)
-  /list          — список отслеживаемых товаров
+  /list          — список (кликабельный, с кнопками: открыть / история / удалить)
   /remove <id>   — убрать товар
   /check         — принудительно проверить всё сейчас
-  /history <id>  — история цен товара
-
-Авто-проверка каждые CHECK_INTERVAL_HOURS часов (через JobQueue).
+  /history <id>  — история цен
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import re
 
 from dotenv import load_dotenv
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    filters, ContextTypes,
+    CallbackQueryHandler, filters, ContextTypes,
 )
 
 import db
@@ -32,7 +29,7 @@ import monitor
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("price_check.bot")
 
-load_dotenv()  # подгружает BOT_TOKEN, CHECK_INTERVAL_HOURS, DB_PATH из .env
+load_dotenv()
 
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
@@ -46,7 +43,7 @@ HELP = (
     "Коли ціна зміниться, прийде сповіщення.\n\n"
     "Команди:\n"
     "• /add &lt;посилання&gt; — додати товар\n"
-    "• /list — мої товари\n"
+    "• /list — мої товари (кнопки: відкрити / історія / видалити)\n"
     "• /remove &lt;id&gt; — прибрати товар\n"
     "• /check — перевірити всі зараз\n"
     "• /history &lt;id&gt; — історія цін\n"
@@ -64,7 +61,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, chat_id):
     conn = context.bot_data["conn"]
-    # дедуп: якщо URL вже відстежується — не дублюємо
     existing = conn.execute(
         "SELECT id FROM items WHERE url = ? AND active = 1", (url,)
     ).fetchone()
@@ -80,9 +76,7 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
     if res.get("ok"):
         if res.get("direction") == "new":
             await update.message.reply_text(
-                f"✅ Додано #{item_id}\n"
-                f"📦 {item['title'] or url}\n"
-                f"💰 {res['new']:.2f} {res['currency']}"
+                f"✅ Додано #{item_id}\n📦 {item['title'] or url}\n💰 {res['new']:.2f} {res['currency']}"
             )
         else:
             await update.message.reply_text(
@@ -113,8 +107,26 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not m:
         await update.message.reply_text("Надішліть посилання на товар або /help.")
         return
-    # если в сообщении несколько ссылок — берём первую
     await _add_url(update, context, m.group(0), update.effective_chat.id)
+
+
+async def _render_list(target_message, context: ContextTypes.DEFAULT_TYPE, items):
+    """Рисует/обновляет список с inline-кнопками. Сортировка по названию товара."""
+    items = sorted(items, key=lambda r: (r["title"] or r["url"]).lower())
+    lines = ["📋 <b>Ваші товари:</b>"]
+    kb = []
+    for it in items:
+        price = f"{it['last_price']:.2f} {it['currency']}" if it["last_price"] is not None else "—"
+        name = (it["title"] or it["url"])[:50]
+        lines.append(f"#{it['id']} · {price}\n   {name}")
+        kb.append([
+            InlineKeyboardButton("🔗", url=it["url"]),
+            InlineKeyboardButton("📜", callback_data=f"hist:{it['id']}"),
+            InlineKeyboardButton("🗑", callback_data=f"del:{it['id']}"),
+        ])
+    markup = InlineKeyboardMarkup(kb) if kb else None
+    text = "\n".join(lines)
+    await target_message.edit_text(text, parse_mode="HTML", reply_markup=markup)
 
 
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,12 +135,7 @@ async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not items:
         await update.message.reply_text("Список порожній. Надішліть посилання на товар 🛒")
         return
-    lines = ["📋 <b>Ваші товари:</b>"]
-    for it in items:
-        price = f"{it['last_price']:.2f} {it['currency']}" if it["last_price"] is not None else "—"
-        name = (it["title"] or it["url"])[:60]
-        lines.append(f"#{it['id']} · {price}\n   {name}")
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    await _render_list(update.message, context, items)
 
 
 async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -182,6 +189,60 @@ async def scheduled_check(context: ContextTypes.DEFAULT_TYPE):
     logger.info("scheduled check done")
 
 
+# --- Callback-обработчики (кнопки списка) ---
+async def cb_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    item_id = int(q.data.split(":", 1)[1])
+    conn = context.bot_data["conn"]
+    it = db.get_item(conn, item_id)
+    if not it:
+        await q.answer("Вже видалено")
+        return
+    name = (it["title"] or it["url"])[:50]
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Так, видалити", callback_data=f"dodel:{item_id}"),
+        InlineKeyboardButton("❌ Ні", callback_data="noop"),
+    ]])
+    await q.edit_message_text(
+        f"🗑 Видалити <b>{name}</b> з моніторингу?", parse_mode="HTML", reply_markup=kb
+    )
+    await q.answer()
+
+
+async def cb_dodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    item_id = int(q.data.split(":", 1)[1])
+    conn = context.bot_data["conn"]
+    db.remove_item(conn, item_id)
+    await q.answer("Видалено ✅")
+    items = db.list_items(conn, chat_id=q.message.chat_id)
+    if items:
+        await _render_list(q.message, context, items)
+    else:
+        await q.message.edit_text(
+            "Список порожній. Надішліть посилання на товар 🛒", reply_markup=None
+        )
+
+
+async def cb_hist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    item_id = int(q.data.split(":", 1)[1])
+    conn = context.bot_data["conn"]
+    rows = db.history(conn, item_id, limit=10)
+    await q.answer()
+    if not rows:
+        await context.bot.send_message(chat_id=q.message.chat_id, text="Історії ще немає.")
+        return
+    lines = [f"🕓 Історія #{item_id}:"]
+    for r in reversed(rows):
+        lines.append(f"  {r['checked_at'][:16].replace('T', ' ')} — {r['price']:.2f} {r['currency']}")
+    await context.bot.send_message(chat_id=q.message.chat_id, text="\n".join(lines))
+
+
+async def cb_noop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.warning("Update %s caused error: %s", update, context.error)
 
@@ -189,8 +250,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
-
-    conn = db.connect(DB_PATH)
+    conn = db.connect()
     app = Application.builder().token(BOT_TOKEN).build()
     app.bot_data["conn"] = conn
 
@@ -202,16 +262,20 @@ def main():
     app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CommandHandler("check", check_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+
+    app.add_handler(CallbackQueryHandler(cb_del, pattern="^del:"))
+    app.add_handler(CallbackQueryHandler(cb_dodel, pattern="^dodel:"))
+    app.add_handler(CallbackQueryHandler(cb_hist, pattern="^hist:"))
+    app.add_handler(CallbackQueryHandler(cb_noop, pattern="^noop$"))
+
     app.add_error_handler(error_handler)
 
-    # авто-проверка каждые N часов
     app.job_queue.run_repeating(
         scheduled_check,
         interval=CHECK_INTERVAL_HOURS * 3600,
         first=30,
         name="price_check",
     )
-
     logger.info("Bot started. Check interval = %s h", CHECK_INTERVAL_HOURS)
     app.run_polling()
 

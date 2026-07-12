@@ -1,0 +1,15 @@
+[Unit]
+Description=Price Check Telegram bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/price-check
+ExecStart=/usr/local/lib/hermes-agent/venv/bin/python3 bot.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/root/price-check/bot.log
+StandardError=append:/root/price-check/bot.log
+
+[Install]
+WantedBy=multi-user.target
