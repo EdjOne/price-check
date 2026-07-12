@@ -726,3 +726,83 @@ INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHie
 INFO apscheduler.scheduler: Added job "price_check" to job store "default"
 INFO apscheduler.scheduler: Scheduler started
 INFO telegram.ext.Application: Application started
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO apscheduler.executors.default: Running job "price_check (trigger: interval[6:00:00], next run at: 2026-07-12 22:18:04 UTC)" (scheduled at 2026-07-12 16:18:04.342827+00:00)
+INFO price_check.bot: scheduled check start
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+WARNING monitor: fetch https://silpo.ua/product/dzhyn-drumshanbo-gunpowder-irish-gin-971957?gad_source=1&gad_campaignid=20386325759&gbraid=0AAAAAo7bnAL4GMqZcLDCNdozsNDS9EoPl&gclid=CjwKCAjw9szSBhBNEiwAC57Sq5AZYKdGBsD9O56OAqjqv34JG3A6CFk2ouVqacjt_w4wBuQsfu-1RRoCGA4QAvD_BwE: HTTP 403, пробуем Playwright
+WARNING monitor: fetch https://rozetka.com.ua/drumshanbo-gunpowder-irish-gin-5060434130228/p384986487/: HTTP 403, пробуем Playwright
+WARNING monitor: fetch https://metro.zakaz.ua/ru/products/dzhin-700ml--05060434130228/: Cloudflare-челлендж, пробуем Playwright
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO price_check.bot: scheduled check done
+INFO apscheduler.executors.default: Job "price_check (trigger: interval[6:00:00], next run at: 2026-07-12 22:18:04 UTC)" executed successfully
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO telegram.ext.Application: Application is stopping. This might take a moment.
+INFO apscheduler.scheduler: Scheduler has been shut down
+INFO telegram.ext.Application: Application.stop() complete
+INFO apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO price_check.bot: Bot started. Check interval = 6 h
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getMe "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/setMyCommands "HTTP/1.1 200 OK"
+INFO price_check.bot: Bot commands menu registered
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/deleteWebhook "HTTP/1.1 200 OK"
+INFO apscheduler.scheduler: Added job "price_check" to job store "default"
+INFO apscheduler.scheduler: Scheduler started
+INFO telegram.ext.Application: Application started

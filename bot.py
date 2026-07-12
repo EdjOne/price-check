@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -111,10 +112,32 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _add_url(update, context, m.group(0), update.effective_chat.id)
 
 
+_STORE_TLDS = {"ua", "com", "net", "org", "co", "io", "gov", "edu",
+               "info", "biz", "ru", "de", "pl", "cz", "eu", "su", "by", "kz"}
+
+
+def _store_name(url):
+    """Извлекает название магазина (SLD) из URL: rozetka.com.ua -> rozetka."""
+    try:
+        netloc = urlparse(url).netloc.lower()
+    except Exception:  # noqa: BLE001
+        return ""
+    netloc = netloc.split("@")[-1].split(":")[0]
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    parts = [p for p in netloc.split(".") if p]
+    while len(parts) > 1 and parts[-1] in _STORE_TLDS:
+        parts.pop()
+    return parts[-1] if parts else ""
+
+
 def _item_view(it):
     """Возвращает (html_text, markup) для одного товара: название-ссылка + кнопки."""
     price = f"{it['last_price']:.2f} {it['currency']}" if it["last_price"] is not None else "—"
     name = (it["title"] or it["url"])[:70]
+    store = _store_name(it["url"])
+    if store and store not in name.lower():
+        name = f"{name} — {store}"
     text = f'<a href="{it["url"]}">{name}</a>\n#{it["id"]} · <b>{price}</b>'
     markup = InlineKeyboardMarkup([[
         InlineKeyboardButton("📜 Історія", callback_data=f"hist:{it['id']}"),
