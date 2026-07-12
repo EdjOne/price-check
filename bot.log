@@ -7,33 +7,10 @@ INFO apscheduler.scheduler: Scheduler started
 INFO telegram.ext.Application: Application started
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO apscheduler.executors.default: Running job "price_check (trigger: interval[6:00:00], next run at: 2026-07-12 20:37:53 UTC)" (scheduled at 2026-07-12 14:37:53.877695+00:00)
+INFO apscheduler.executors.default: Running job "price_check (trigger: interval[6:00:00], next run at: 2026-07-12 20:42:26 UTC)" (scheduled at 2026-07-12 14:42:26.513990+00:00)
 INFO price_check.bot: scheduled check start
 INFO price_check.bot: scheduled check done
-INFO apscheduler.executors.default: Job "price_check (trigger: interval[6:00:00], next run at: 2026-07-12 20:37:53 UTC)" executed successfully
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
-/root/price-check/monitor.py:93: RuntimeWarning: coroutine 'ExtBot.send_message' was never awaited
-  bot.send_message(chat_id=item["chat_id"], text=msg, parse_mode="HTML")
-RuntimeWarning: Enable tracemalloc to get the object allocation traceback
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
-WARNING monitor: fetch failed https://rozetka.com.ua/drumshanbo-gunpowder-irish-gin-5060434130228/p384986487/: 403 Client Error: Forbidden for url: https://rozetka.com.ua/drumshanbo-gunpowder-irish-gin-5060434130228/p384986487/
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
-WARNING monitor: fetch failed https://rozetka.com.ua/drumshanbo-gunpowder-irish-gin-5060434130228/p384986487/: 403 Client Error: Forbidden for url: https://rozetka.com.ua/drumshanbo-gunpowder-irish-gin-5060434130228/p384986487/
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
-INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO apscheduler.executors.default: Job "price_check (trigger: interval[6:00:00], next run at: 2026-07-12 20:42:26 UTC)" executed successfully
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
@@ -46,6 +23,26 @@ INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHie
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
+WARNING monitor: fetch failed https://rozetka.com.ua/drumshanbo-gunpowder-irish-gin-506043: 404 Client Error: Not Found for url: https://rozetka.com.ua/ua/drumshanbo-gunpowder-irish-gin-506043/
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
+INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/sendMessage "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"
 INFO httpx: HTTP Request: POST https://api.telegram.org/bot8937134980:AAGS4pHHiejR3ssKGcG7Alzu1dg68OYbq7Y/getUpdates "HTTP/1.1 200 OK"

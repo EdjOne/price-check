@@ -107,7 +107,8 @@ async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text or ""
+    # склеиваем переносы строк — чтобы URL, разбитый при вставке, восстановился
+    text = (update.message.text or "").replace("\n", "").replace("\r", "")
     m = URL_RE.search(text)
     if not m:
         await update.message.reply_text("Надішліть посилання на товар або /help.")
