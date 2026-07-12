@@ -17,7 +17,7 @@ import re
 
 from dotenv import load_dotenv
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, filters, ContextTypes,
@@ -254,11 +254,24 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.warning("Update %s caused error: %s", update, context.error)
 
 
+async def post_init(app: Application):
+    """Регистрируем меню команд — Telegram показывает подсказку при вводе '/'."""
+    await app.bot.set_my_commands([
+        BotCommand("add", "➕ Додати товар за посиланням"),
+        BotCommand("list", "📋 Мої товари"),
+        BotCommand("check", "🔄 Перевірити всі ціни зараз"),
+        BotCommand("history", "📜 Історія цін (/history <id>)"),
+        BotCommand("remove", "🗑 Прибрати товар (/remove <id>)"),
+        BotCommand("help", "❓ Довідка"),
+    ])
+    logger.info("Bot commands menu registered")
+
+
 def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
     conn = db.connect()
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.bot_data["conn"] = conn
 
     app.add_handler(CommandHandler("start", start))
