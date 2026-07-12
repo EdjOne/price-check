@@ -77,7 +77,19 @@ async def _fetch_playwright(url):
                 },
             )
             page = await ctx.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            # ждём, пока прогрузится реальный контент (не заглушка "зачекайте")
+            try:
+                await page.wait_for_function(
+                    "() => { const t = document.body.innerText || ''; "
+                    "return !/зачекайте|just a moment/i.test(t) && document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; }",
+                    timeout=25000,
+                )
+            except Exception:  # noqa: BLE001
+                try:
+                    await page.wait_for_timeout(8000)
+                except Exception:  # noqa: BLE001
+                    pass
             html = await page.content()
             await browser.close()
             return html, None
