@@ -110,8 +110,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _add_url(update, context, m.group(0), update.effective_chat.id)
 
 
-async def _render_list(target_message, context: ContextTypes.DEFAULT_TYPE, items):
-    """Рисует/обновляет список с inline-кнопками. Сортировка по названию товара."""
+async def _render_list(target_message, context: ContextTypes.DEFAULT_TYPE, items, edit=False):
+    """Рисует/обновляет список с inline-кнопками. Сортировка по названию товара.
+
+    edit=True — редактировать существующее сообщение (для колбэков кнопок).
+    edit=False — прислать новое (для команды /list).
+    """
     items = sorted(items, key=lambda r: (r["title"] or r["url"]).lower())
     lines = ["📋 <b>Ваші товари:</b>"]
     kb = []
@@ -126,7 +130,10 @@ async def _render_list(target_message, context: ContextTypes.DEFAULT_TYPE, items
         ])
     markup = InlineKeyboardMarkup(kb) if kb else None
     text = "\n".join(lines)
-    await target_message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+    if edit:
+        await target_message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+    else:
+        await target_message.reply_text(text, parse_mode="HTML", reply_markup=markup)
 
 
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -217,7 +224,7 @@ async def cb_dodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer("Видалено ✅")
     items = db.list_items(conn, chat_id=q.message.chat_id)
     if items:
-        await _render_list(q.message, context, items)
+        await _render_list(q.message, context, items, edit=True)
     else:
         await q.message.edit_text(
             "Список порожній. Надішліть посилання на товар 🛒", reply_markup=None
