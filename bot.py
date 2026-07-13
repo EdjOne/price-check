@@ -336,7 +336,9 @@ def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
     conn = db.connect()
-    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+    from telegram.ext import JobQueue
+    # PTB >=22.7 не создаёт job_queue автоматически — инициализируем явно
+    app = Application.builder().token(BOT_TOKEN).post_init(post_init).job_queue(JobQueue()).build()
     app.bot_data["conn"] = conn
 
     app.add_handler(CommandHandler("start", start))
