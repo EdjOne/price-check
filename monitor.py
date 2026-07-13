@@ -55,6 +55,28 @@ def _is_cloudflare(html: str) -> bool:
             or "enable javascript and cookies to continue" in h)
 
 
+# Маркеры страниц ошибок (404 / 403 / not found) — их нельзя трактовать как товар.
+_ERROR_TITLE_HINTS = (
+    "помилка 404", "страница не найдена", "сторінка не знайдена",
+    "page not found", "not found", "404 not found", "error 404",
+    "запрашиваемая страница", "does not exist", "не существует",
+)
+
+
+def _is_error_page(html: str, title: str | None = None) -> bool:
+    """True, если страница — это 404/403/Not Found вместо товара."""
+    if not html:
+        return False
+    t = (title or "").strip().lower()
+    if t and any(h in t for h in _ERROR_TITLE_HINTS):
+        return True
+    # иногда title нормальный, но в теле торчит «Помилка 404»
+    head = html[:4000].lower()
+    return any(h in head for h in ("помилка 404", "error 404", "404 not found",
+                                   "page not found", "страница не найдена",
+                                   "сторінка не знайдена"))
+
+
 async def _fetch_requests(url):
     try:
         r = await asyncio.to_thread(
@@ -152,15 +174,26 @@ async def fetch(url: str) -> tuple[str | None, str | None]:
     """Возвращает (html, error). error=None при успехе."""
     r, err = await _fetch_requests(url)
     if r is not None and r.status_code == 200 and not _is_cloudflare(r.text):
-        return r.text, None
-
+        # доп. защита: страница ошибки с кодом 200 (редко)
+        if not _is_error_page(r.text):
+            return r.text, None
+        logger.warning("fetch %s: страница-ошибка (200) — не берём", url)
+        return None, "сторінка не знайдена (404/помилка)"
     if r is not None and r.status_code != 200:
-        logger.warning("fetch %s: HTTP %s, пробуем Playwright", url, r.status_code)
-    elif r is not None:
-        logger.warning("fetch %s: Cloudflare-челлендж, пробуем Playwright", url)
+        # 404/5xx нельзя вылечить браузером — не тратим время на Playwright
+        if r.status_code == 404:
+            logger.warning("fetch %s: HTTP 404", url)
+            return None, "сторінка не знайдена (HTTP 404)"
+        if r.status_code == 403:
+            logger.warning("fetch %s: HTTP 403 (возможно защита)", url)
+        else:
+            logger.warning("fetch %s: HTTP %s, пробуем Playwright", url, r.status_code)
 
     html, perr = await _fetch_playwright(url)
     if html:
+        # Playwright мог тоже отдать 404-страницу — проверяем
+        if _is_error_page(html):
+            return None, "сторінка не знайдена (404/помилка)"
         return html, None
     if r is not None and r.status_code != 200:
         reason = "Cloudflare/защита сайта" if r.status_code == 403 else f"HTTP {r.status_code}"
