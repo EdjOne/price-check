@@ -506,12 +506,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def post_init(app: Application):
     """Регистрируем меню команд — Telegram показывает подсказку при вводе '/'."""
     await app.bot.set_my_commands([
-        BotCommand("add", "➕ Додати товар за посиланням"),
         BotCommand("list", "📋 Мої товари"),
         BotCommand("check", "🔄 Перевірити всі ціни зараз"),
         BotCommand("clear", "🧹 Очистити чат"),
         BotCommand("history", "📜 Історія цін (/history <id>)"),
-        BotCommand("remove", "🗑 Прибрати товар (/remove <id>)"),
         BotCommand("help", "❓ Довідка"),
     ])
     logger.info("Bot commands menu registered")
