@@ -21,12 +21,40 @@ CURRENCY_MAP = {
     "€": "EUR", "eur": "EUR", "євро": "EUR", "евро": "EUR",
     "₽": "RUB", "руб": "RUB", "ruble": "RUB", "rub": "RUB",
     "zł": "PLN", "pln": "PLN", "злот": "PLN",
+    "lei": "MDL", "mdl": "MDL", "леев": "MDL", "лея": "MDL",
+}
+
+# Домен верхнего уровня -> валюта по умолчанию (если на странице не найдена)
+TLD_CURRENCY = {
+    "ua": "UAH", "md": "MDL", "ru": "RUB", "by": "BYN",
+    "pl": "PLN", "de": "EUR", "eu": "EUR", "fr": "EUR",
+    "com": None, "net": None, "org": None,  # без гео — оставляем None
 }
 
 # Маркери валюти: символи + слова (шукаємо число поряд)
 CURRENCY_MARKERS = ["₴", "$", "€", "₽", "zł",
                     "грн", "грив", "руб", "дол", "євро", "евро",
-                    "uah", "usd", "eur", "rub", "pln"]
+                    "uah", "usd", "eur", "rub", "pln", "lei", "mdl"]
+
+
+def _currency_from_tld(url: str | None) -> str | None:
+    """Валюта по домену магазина (фоллбэк, когда на странице нет маркера)."""
+    if not url:
+        return None
+    from urllib.parse import urlparse
+    try:
+        netloc = urlparse(url).netloc.lower()
+    except Exception:
+        return None
+    netloc = netloc.split("@")[-1].split(":")[0]
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    parts = [p for p in netloc.split(".") if p]
+    # идём от TLD вверх, пока не найдём известную валюту
+    for tld in reversed(parts):
+        if tld in TLD_CURRENCY:
+            return TLD_CURRENCY[tld]
+    return None
 
 
 def _to_float(raw: str) -> float | None:
@@ -198,7 +226,8 @@ def extract(html: str, url: str | None = None) -> tuple[float | None, str | None
         price, cur = _from_text(soup)
 
     if cur is None and price is not None:
-        cur = "UAH"  # дефолт для наших широт
+        # сначала пробуем валюту по домену (гео), затем дефолт UAH
+        cur = _currency_from_tld(url) or "UAH"
     return price, cur, title
 
 
