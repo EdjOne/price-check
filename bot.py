@@ -62,6 +62,21 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(HELP, parse_mode="HTML")
 
 
+CLEANUP_DELAY_SECONDS = 120  # через сколько секунд удалять служебные сообщения добавления
+
+
+async def _delete_messages_job(context: ContextTypes.DEFAULT_TYPE):
+    """Удаляет группу сообщений (ссылка юзера + служебные сообщения бота)."""
+    data = context.job.data
+    chat_id = data["chat_id"]
+    for mid in data["msg_ids"]:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=mid)
+        except Exception:  # noqa: BLE001
+            # уже удалено / старше 48ч / нет прав — пропускаем
+            continue
+
+
 async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, chat_id):
     conn = context.bot_data["conn"]
     existing = conn.execute(
@@ -73,23 +88,39 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
         )
         return
     item_id = db.add_item(conn, url, str(chat_id))
-    await update.message.reply_text(f"🔄 Перевіряю посилання #{item_id}…")
+    checking_msg = await update.message.reply_text(f"🔄 Перевіряю посилання #{item_id}…")
     item = db.get_item(conn, item_id)
     res = await monitor.check_item(conn, item, bot=context.bot)
+    # собираем ID сообщений для авто-удаления через пару минут
+    to_delete = [update.message.message_id, checking_msg.message_id]
     if res.get("ok"):
         if res.get("direction") == "new":
-            await update.message.reply_text(
+            added_msg = await update.message.reply_text(
                 f"✅ Додано #{item_id}\n📦 {item['title'] or url}\n💰 {res['new']:.2f} {res['currency']}"
             )
+            to_delete.append(added_msg.message_id)
         else:
-            await update.message.reply_text(
+            added_msg = await update.message.reply_text(
                 f"✅ Оновлено #{item_id}: {res['new']:.2f} {res['currency']}"
             )
+            to_delete.append(added_msg.message_id)
     else:
-        await update.message.reply_text(
+        added_msg = await update.message.reply_text(
             f"⚠️ Посилання #{item_id} додано, але ціну не вдалося визначити "
             f"({res.get('error')}). Перевірю пізніше."
         )
+        to_delete.append(added_msg.message_id)
+    # сообщение "Взяв на моніторинг" (из monitor.check_item)
+    if res.get("monitor_msg_id"):
+        to_delete.append(res["monitor_msg_id"])
+    # удаляем всё через 2 хвилини, щоб не засмічувати чат
+    context.job_queue.run_once(
+        _delete_messages_job,
+        CLEANUP_DELAY_SECONDS,
+        data={"chat_id": chat_id, "msg_ids": to_delete},
+        name=f"cleanup_{item_id}",
+    )
+
 
 
 async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):

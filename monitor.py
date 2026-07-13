@@ -162,7 +162,9 @@ async def check_item(conn, item, bot=None) -> dict:
         result["changed"] = True
         result["direction"] = direction
         if bot is not None and item["chat_id"]:
-            await _send_alert(bot, item, old, price, result["currency"], direction, title)
+            result["monitor_msg_id"] = await _send_alert(
+                bot, item, old, price, result["currency"], direction, title
+            )
     else:
         conn.execute("UPDATE items SET last_checked = ? WHERE id = ?",
                      (datetime.now(timezone.utc).isoformat(), item_id))
@@ -184,9 +186,11 @@ async def _send_alert(bot, item, old, new, currency, direction, title):
                f"Стало: {new:.2f} {currency} ({diff:+.2f}, {pct:+.1f}%)\n"
                f"🔗 {item['url']}")
     try:
-        await bot.send_message(chat_id=item["chat_id"], text=msg, parse_mode="HTML")
+        sent = await bot.send_message(chat_id=item["chat_id"], text=msg, parse_mode="HTML")
+        return sent.message_id
     except Exception as exc:  # noqa: BLE001
         logger.warning("alert send failed %s: %s", item["chat_id"], exc)
+        return None
 
 
 async def check_all(conn, bot=None):
