@@ -105,8 +105,15 @@ def list_items(conn, chat_id: Optional[str] = None, active_only: bool = True):
     return conn.execute(q).fetchall()
 
 
-def remove_item(conn, item_id: int) -> bool:
-    res = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+def remove_item(conn, item_id: int, chat_id: Optional[str] = None) -> bool:
+    """Удаляет товар. Если задан chat_id — только если товар принадлежит этому юзеру
+    (защита от удаления чужих товаров)."""
+    if chat_id is not None:
+        res = conn.execute(
+            "DELETE FROM items WHERE id = ? AND chat_id = ?", (item_id, str(chat_id))
+        )
+    else:
+        res = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
     conn.commit()
     return res.rowcount > 0
 

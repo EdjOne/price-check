@@ -352,8 +352,19 @@ async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _ensure_access(update, context):
         return
     conn = context.bot_data["conn"]
-    ok = db.remove_item(conn, item_id)
-    await update.message.reply_text("✅ Видалено." if ok else "❌ Немає такого id.")
+    chat_id = str(update.effective_chat.id)
+    # проверяем, что товар существует и принадлежит этому юзеру
+    item = conn.execute(
+        "SELECT id, chat_id FROM items WHERE id = ? AND active = 1", (item_id,)
+    ).fetchone()
+    if not item:
+        await update.message.reply_text("❌ Немає такого id.")
+        return
+    if item["chat_id"] != chat_id and chat_id != ADMIN_ID:
+        await update.message.reply_text("⛔ Це не ваш товар — видаляти можна лише свої.")
+        return
+    ok = db.remove_item(conn, item_id, chat_id=None if chat_id == ADMIN_ID else chat_id)
+    await update.message.reply_text("✅ Видалено." if ok else "❌ Не вдалося видалити.")
 
 
 async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -368,6 +379,14 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _ensure_access(update, context):
         return
     conn = context.bot_data["conn"]
+    cid = str(update.effective_chat.id)
+    it = db.get_item(conn, item_id)
+    if not it:
+        await update.message.reply_text("❌ Немає такого id.")
+        return
+    if it["chat_id"] != cid and cid != ADMIN_ID:
+        await update.message.reply_text("⛔ Це не ваш товар — історію видно лише для своїх.")
+        return
     rows = db.history(conn, item_id, limit=10)
     if not rows:
         await update.message.reply_text("Історії ще немає.")
@@ -450,6 +469,11 @@ async def cb_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not it:
         await q.answer("Вже видалено")
         return
+    # защита: удалять можно только свои товары (админ — любые)
+    cid = str(q.message.chat_id)
+    if it["chat_id"] != cid and cid != ADMIN_ID:
+        await q.answer("⛔ Це не ваш товар", show_alert=True)
+        return
     name = (it["title"] or it["url"])[:50]
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Так, видалити", callback_data=f"dodel:{item_id}"),
@@ -467,7 +491,15 @@ async def cb_dodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _ensure_access(update, context):
         return
     conn = context.bot_data["conn"]
-    db.remove_item(conn, item_id)
+    it = db.get_item(conn, item_id)
+    if not it:
+        await q.answer("Вже видалено")
+        return
+    cid = str(q.message.chat_id)
+    if it["chat_id"] != cid and cid != ADMIN_ID:
+        await q.answer("⛔ Це не ваш товар", show_alert=True)
+        return
+    db.remove_item(conn, item_id, chat_id=None if cid == ADMIN_ID else cid)
     await q.answer("Видалено ✅")
     # просто убираем сообщение этого товара
     try:
@@ -482,6 +514,14 @@ async def cb_hist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _ensure_access(update, context):
         return
     conn = context.bot_data["conn"]
+    cid = str(q.message.chat_id)
+    it = db.get_item(conn, item_id)
+    if not it:
+        await q.answer("Немає такого товару")
+        return
+    if it["chat_id"] != cid and cid != ADMIN_ID:
+        await q.answer("⛔ Це не ваш товар", show_alert=True)
+        return
     rows = db.history(conn, item_id, limit=10)
     await q.answer()
     if not rows:
