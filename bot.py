@@ -131,14 +131,56 @@ def _store_name(url):
     return parts[-1] if parts else ""
 
 
-def _item_view(it):
+# Слова-мусор: магазины и служебная шелуха, мешающая сравнивать названия товаров.
+_JUNK_WORDS = {
+    "okwine", "silpo", "rozetka", "zakaz", "metro", "antoshka", "citrus", "maudau",
+    "foxmart", "foxfrot", "fua", "prom", "obzhora", "com", "ua", "ru", "html", "www",
+    "uk", "shop", "store", "buy", "market", "официальный", "сайт", "varus", "alcomag",
+    "купити", "купить", "заказать", "онлайн", "супермаркет", "интернет", "магазин",
+    "irish", "gin", "джин", "курити", "сільпо", "silpo", "awesome", "charcoal",
+    "bliskavka", "makkvin", "пастеризоване", "темне", "thbg", "принтера", "пластик",
+    "набір", "set", "дегустаційний", "best", "price", "new", "original", "extra",
+}
+
+
+def normalize_key(title: str, url: str = "") -> str:
+    """Ключ группировки похожих товаров: бренд+модель без мусора/чисел/магазина.
+    Все части домена магазина и служебные слова выкидываются где бы ни стояли."""
+    # все части хоста (metro, zakaz, alcomag, ...) -> в стоп-слова
+    host_parts = set()
+    try:
+        netloc = urlparse(url).netloc.lower().split("@")[-1].split(":")[0]
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        for p in netloc.split("."):
+            if p:
+                host_parts.add(p)
+    except Exception:  # noqa: BLE001
+        pass
+    t = (title or "").lower()
+    # любые разделители строк (вкл. unicode \u2028/\u2029) -> пробел
+    t = t.replace("\t", " ")
+    t = re.sub(r"[\s\u2028\u2029\u00a0]+", " ", t)
+    t = re.sub(r"\([^)]*\)", " ", t)         # (5060434130228), (SM-...)
+    t = re.sub(r"«[^»]*»", " ", t)
+    t = re.sub(r"\d+", " ", t)               # все цифры: объёмы, %, модель
+    # оставляем только латиницу/цифры/пробелы (кириллица = мусор/магазины)
+    t = re.sub(r"[^a-z\s]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    stop = set(_JUNK_WORDS) | host_parts
+    toks = [w for w in t.split() if w and w not in stop and len(w) > 2]
+    return " ".join(sorted(toks)).strip()
+
+
+def _item_view(it, best: bool = False):
     """Возвращает (html_text, markup) для одного товара: название-ссылка + кнопки."""
     price = f"{it['last_price']:.2f} {it['currency']}" if it["last_price"] is not None else "—"
     name = (it["title"] or it["url"])[:70]
     store = _store_name(it["url"])
     if store and store not in name.lower():
         name = f"{name} — {store}"
-    text = f'<a href="{it["url"]}">{name}</a>\n#{it["id"]} · <b>{price}</b>'
+    trophy = "🏆 " if best else ""
+    text = f'<a href="{it["url"]}">{name}</a>\n#{it["id"]} · <b>{trophy}{price}</b>'
     markup = InlineKeyboardMarkup([[
         InlineKeyboardButton("📜 Історія", callback_data=f"hist:{it['id']}"),
         InlineKeyboardButton("🗑 Видалити", callback_data=f"del:{it['id']}"),
@@ -148,16 +190,26 @@ def _item_view(it):
 
 async def _send_list(target, context: ContextTypes.DEFAULT_TYPE, items):
     """Шлёт заголовок + отдельное сообщение на каждый товар (кнопки под названием).
-    Сортировка по названию товара БЕЗ хвоста-магазина (чтобы одинаковые группировались)."""
-    def _sort_key(it):
-        title = (it["title"] or it["url"])
-        # отрезаем добавленный в конце " — магазин" / " | магазин"
-        base = re.sub(r"\s*[—|]\s*[^\s—|]+$", "", title).strip()
-        return base.lower()
-    items = sorted(items, key=_sort_key)
-    await target.reply_text(f"📋 <b>Ваші товари ({len(items)}):</b>", parse_mode="HTML")
+    Товары группируются по normalize_key: в каждой группе 🏆 у самой низкой цены.
+    Сортировка: по названию группы, затем по возрастанию цены."""
+    # группируем
+    groups: dict[str, list] = {}
     for it in items:
-        text, markup = _item_view(it)
+        groups.setdefault(normalize_key(it["title"], it["url"]) or f"url:{it['url']}", []).append(it)
+    # помечаем лучшую цену в каждой группе (где >1 товара)
+    best_ids: set[int] = set()
+    for g in groups.values():
+        if len(g) > 1:
+            cheapest = min(g, key=lambda x: (x["last_price"] if x["last_price"] is not None else 1e9))
+            best_ids.add(cheapest["id"])
+    # плоский список, отсортированный по (ключ группы, цена)
+    def _sort_key(it):
+        price = it["last_price"] if it["last_price"] is not None else 1e9
+        return (normalize_key(it["title"], it["url"]), price)
+    ordered = sorted(items, key=_sort_key)
+    await target.reply_text(f"📋 <b>Ваші товари ({len(items)}):</b>", parse_mode="HTML")
+    for it in ordered:
+        text, markup = _item_view(it, best=it["id"] in best_ids)
         await target.reply_text(
             text, parse_mode="HTML", reply_markup=markup,
             disable_web_page_preview=True,
