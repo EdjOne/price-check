@@ -37,6 +37,7 @@ URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHECK_INTERVAL_HOURS = int(os.getenv("CHECK_INTERVAL_HOURS", "6"))
 DB_PATH = os.getenv("DB_PATH", "price_check.db")
+ADMIN_ID = os.getenv("ADMIN_ID")  # кому прилетают запросы на апрув новых юзеров
 
 HELP = (
     "💰 <b>Price Check</b> — моніторинг цін\n\n"
@@ -188,6 +189,75 @@ def _item_view(it, best: bool = False):
     return text, markup
 
 
+# ── Контроль доступа (апрувал новых юзеров) ────────────────────────────────
+
+async def _ensure_access(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """True, если юзеру можно работать. Иначе шлёт ему сообщение и запрос админу."""
+    conn = context.bot_data["conn"]
+    chat_id = update.effective_chat.id
+    # админ всегда проходит
+    if ADMIN_ID and str(chat_id) == str(ADMIN_ID):
+        db.upsert_pending(conn, chat_id, update.effective_user.username)
+        db.set_user_status(conn, chat_id, "approved")
+        return True
+    user = db.get_user(conn, chat_id)
+    if user and user["status"] == "approved":
+        return True
+    # новый или pending/denied — регистрируем и просим апрув у админа
+    is_new = user is None
+    if is_new:
+        db.upsert_pending(conn, chat_id, update.effective_user.username)
+    if user and user["status"] == "denied":
+        await update.effective_message.reply_text("⛔ Доступ заборонено. Зверніться до власника бота.")
+        return False
+    # pending
+    uname = update.effective_user.username or update.effective_user.full_name or "?"
+    await update.effective_message.reply_text(
+        "⏳ Ваш запит на доступ відправлено власнику. Очікуйте підтвердження ✅"
+    )
+    if ADMIN_ID:
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Дозволити", callback_data=f"approve:{chat_id}"),
+            InlineKeyboardButton("❌ Відхилити", callback_data=f"deny:{chat_id}"),
+        ]])
+        await context.bot.send_message(
+            chat_id=int(ADMIN_ID),
+            text=f"🔔 <b>Новий користувач</b> запитує доступ:\n"
+                 f"ID: <code>{chat_id}</code>\n"
+                 f"@{uname}",
+            parse_mode="HTML", reply_markup=kb,
+        )
+    return False
+
+
+async def cb_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    chat_id = q.data.split(":", 1)[1]
+    conn = context.bot_data["conn"]
+    db.set_user_status(conn, chat_id, "approved")
+    await q.answer("✅ Дозволено")
+    await q.edit_message_text(f"✅ Користувач <code>{chat_id}</code> отримав доступ.", parse_mode="HTML")
+    try:
+        await context.bot.send_message(chat_id=int(chat_id),
+                                      text="✅ Доступ відкрито! Можете користуватись ботом.")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def cb_deny(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    chat_id = q.data.split(":", 1)[1]
+    conn = context.bot_data["conn"]
+    db.set_user_status(conn, chat_id, "denied")
+    await q.answer("❌ Відхилено")
+    await q.edit_message_text(f"❌ Користувач <code>{chat_id}</code> заблокований.", parse_mode="HTML")
+    try:
+        await context.bot.send_message(chat_id=int(chat_id),
+                                      text="⛔ Доступ заборонено власником бота.")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def _send_list(target, context: ContextTypes.DEFAULT_TYPE, items):
     """Шлёт заголовок + отдельное сообщение на каждый товар (кнопки под названием).
     Товары группируются по normalize_key: в каждой группе 🏆 у самой низкой цены.
@@ -217,6 +287,8 @@ async def _send_list(target, context: ContextTypes.DEFAULT_TYPE, items):
 
 
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await _ensure_access(update, context):
+        return
     conn = context.bot_data["conn"]
     items = db.list_items(conn, chat_id=update.effective_chat.id)
     if not items:
@@ -234,6 +306,8 @@ async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("id має бути числом.")
         return
+    if not await _ensure_access(update, context):
+        return
     conn = context.bot_data["conn"]
     ok = db.remove_item(conn, item_id)
     await update.message.reply_text("✅ Видалено." if ok else "❌ Немає такого id.")
@@ -247,6 +321,8 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item_id = int(context.args[0])
     except ValueError:
         await update.message.reply_text("id має бути числом.")
+        return
+    if not await _ensure_access(update, context):
         return
     conn = context.bot_data["conn"]
     rows = db.history(conn, item_id, limit=10)
@@ -262,6 +338,8 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def check_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await _ensure_access(update, context):
+        return
     conn = context.bot_data["conn"]
     await update.message.reply_text("🔄 Перевіряю всі товари…")
     results = await monitor.check_all(conn, bot=context.bot)
@@ -282,8 +360,10 @@ async def clear_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Чистит чат: удаляет сообщения от текущего вниз (сколько сможет).
 
     Telegram позволяет боту удалять только сообщения не старше 48 часов.
-    Идём по message_id вниз и молча пропускаем то, что удалить нельзя.
+    ℹ️ Telegram не дає видаляти повідомлення старші 48 годин.
     """
+    if not await _ensure_access(update, context):
+        return
     chat_id = update.effective_chat.id
     last_id = update.message.message_id
     deleted = 0
@@ -320,6 +400,8 @@ async def _delete_later(context: ContextTypes.DEFAULT_TYPE):
 async def cb_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     item_id = int(q.data.split(":", 1)[1])
+    if not await _ensure_access(update, context):
+        return
     conn = context.bot_data["conn"]
     it = db.get_item(conn, item_id)
     if not it:
@@ -339,6 +421,8 @@ async def cb_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cb_dodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     item_id = int(q.data.split(":", 1)[1])
+    if not await _ensure_access(update, context):
+        return
     conn = context.bot_data["conn"]
     db.remove_item(conn, item_id)
     await q.answer("Видалено ✅")
@@ -352,6 +436,8 @@ async def cb_dodel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cb_hist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     item_id = int(q.data.split(":", 1)[1])
+    if not await _ensure_access(update, context):
+        return
     conn = context.bot_data["conn"]
     rows = db.history(conn, item_id, limit=10)
     await q.answer()
@@ -410,6 +496,8 @@ def main():
     app.add_handler(CallbackQueryHandler(cb_del, pattern="^del:"))
     app.add_handler(CallbackQueryHandler(cb_dodel, pattern="^dodel:"))
     app.add_handler(CallbackQueryHandler(cb_hist, pattern="^hist:"))
+    app.add_handler(CallbackQueryHandler(cb_approve, pattern="^approve:"))
+    app.add_handler(CallbackQueryHandler(cb_deny, pattern="^deny:"))
     app.add_handler(CallbackQueryHandler(cb_noop, pattern="^noop$"))
 
     app.add_error_handler(error_handler)

@@ -38,8 +38,41 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
             FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS users (
+            chat_id    TEXT PRIMARY KEY,
+            username   TEXT,
+            status     TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | denied
+            created_at TEXT NOT NULL,
+            decided_at TEXT
+        )"""
+    )
     conn.commit()
     return conn
+
+
+def get_user(conn, chat_id: str):
+    return conn.execute("SELECT * FROM users WHERE chat_id = ?", (str(chat_id),)).fetchone()
+
+
+def upsert_pending(conn, chat_id: str, username: str = None):
+    """Регистрирует нового юзера как pending (если ещё нет)."""
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO users (chat_id, username, status, created_at) VALUES (?, ?, 'pending', ?)",
+        (str(chat_id), username, _now()),
+    )
+    if username:
+        conn.execute("UPDATE users SET username = ? WHERE chat_id = ?", (username, str(chat_id)))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def set_user_status(conn, chat_id: str, status: str):
+    conn.execute(
+        "UPDATE users SET status = ?, decided_at = ? WHERE chat_id = ?",
+        (status, _now(), str(chat_id)),
+    )
+    conn.commit()
 
 
 def add_item(conn, url: str, chat_id: str, title: Optional[str] = None,
