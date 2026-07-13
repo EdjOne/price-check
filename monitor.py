@@ -75,28 +75,65 @@ async def _fetch_playwright(url):
     if not PLAYWRIGHT_AVAILABLE:
         return None, "Playwright не встановлено"
     try:
+        from urllib.parse import urlparse
+        tld = (urlparse(url).netloc.split(".")[-1] or "").lower()
+        # для молдавских сайтов — локаль браузера молдавская
+        md = tld == "md"
+        launch_kwargs = {
+            # --headless=new детектится Cloudflare слабее, чем старый headless=True
+            "headless": True,
+            "args": [
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+                "--headless=new",
+            ],
+        }
+        if PROXY_URL:
+            launch_kwargs["proxy"] = {"server": PROXY_URL}
         async with async_playwright() as p:
-            launch_kwargs = {
-                "headless": True,
-                "args": ["--no-sandbox", "--disable-dev-shm-usage"],
-            }
-            if PROXY_URL:
-                launch_kwargs["proxy"] = {"server": PROXY_URL}
             browser = await p.chromium.launch(**launch_kwargs)
             ctx = await browser.new_context(
-                user_agent=HEADERS["User-Agent"],
-                locale="uk-UA",
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                ),
+                locale="ro-MD" if md else "uk-UA",
+                timezone_id="Europe/Chisinau" if md else "Europe/Kyiv",
+                viewport={"width": 1366, "height": 768},
                 extra_http_headers={
-                    "Accept-Language": "uk-UA,uk;q=0.9,ru;q=0.8,en;q=0.7"
+                    "Accept-Language": "ro-MD,ro;q=0.9,ru;q=0.8,en;q=0.7" if md
+                                      else "uk-UA,uk;q=0.9,ru;q=0.8,en;q=0.7",
+                    "Accept": (
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                        "image/avif,image/webp,*/*;q=0.8"
+                    ),
+                    "Sec-CH-UA": (
+                        '"Chromium";v="124", "Google Chrome";v="124", '
+                        '"Not-A.Brand";v="99"'
+                    ),
+                    "Sec-CH-UA-Mobile": "?0",
+                    "Sec-CH-UA-Platform": '"Windows"',
+                    "Upgrade-Insecure-Requests": "1",
                 },
+            )
+            # прячем navigator.webdriver
+            await ctx.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', "
+                "{get: () => undefined});"
             )
             page = await ctx.new_page()
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            # ждём, пока прогрузится реальный контент (не заглушка "зачекайте")
+            # даём Cloudflare время пройти JS-челлендж
+            try:
+                await page.wait_for_load_state("networkidle", timeout=20000)
+            except Exception:  # noqa: BLE001
+                pass
             try:
                 await page.wait_for_function(
                     "() => { const t = document.body.innerText || ''; "
-                    "return !/зачекайте|just a moment/i.test(t) && document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; }",
+                    "return !/зачекайте|just a moment|verify you are human/i.test(t) "
+                    "&& document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; }",
                     timeout=25000,
                 )
             except Exception:  # noqa: BLE001
