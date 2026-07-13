@@ -179,7 +179,7 @@ def _item_view(it, best: bool = False):
     store = _store_name(it["url"])
     if store and store not in name.lower():
         name = f"{name} — {store.capitalize()}"
-    trophy = "🏆 " if best else ""
+    trophy = "✅ " if best else ""
     text = f'<a href="{it["url"]}">{name}</a>\n#{it["id"]} · <b>{trophy}{price}</b>'
     markup = InlineKeyboardMarkup([[
         InlineKeyboardButton("📜 Історія", callback_data=f"hist:{it['id']}"),
