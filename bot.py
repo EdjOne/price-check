@@ -201,10 +201,12 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not rows:
         await update.message.reply_text("Історії ще немає.")
         return
-    lines = [f"🕓 Історія #{item_id}:"]
+    it = db.get_item(conn, item_id)
+    name = (it["title"] or it["url"])[:70] if it else f"#{item_id}"
+    lines = [f"🕓 Історія <a href=\"{it['url']}\">{name}</a>:"]
     for r in reversed(rows):
         lines.append(f"  {r['checked_at'][:16].replace('T', ' ')} — {r['price']:.2f} {r['currency']}")
-    await update.message.reply_text("\n".join(lines))
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def check_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -304,10 +306,12 @@ async def cb_hist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not rows:
         await context.bot.send_message(chat_id=q.message.chat_id, text="Історії ще немає.")
         return
-    lines = [f"🕓 Історія #{item_id}:"]
+    it = db.get_item(conn, item_id)
+    name = (it["title"] or it["url"])[:70] if it else f"#{item_id}"
+    lines = [f"🕓 Історія <a href=\"{it['url']}\">{name}</a>:"]
     for r in reversed(rows):
         lines.append(f"  {r['checked_at'][:16].replace('T', ' ')} — {r['price']:.2f} {r['currency']}")
-    await context.bot.send_message(chat_id=q.message.chat_id, text="\n".join(lines))
+    await context.bot.send_message(chat_id=q.message.chat_id, text="\n".join(lines), parse_mode="HTML")
 
 
 async def cb_noop(update: Update, context: ContextTypes.DEFAULT_TYPE):
