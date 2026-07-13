@@ -93,6 +93,8 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
 
 
 async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await _ensure_access(update, context):
+        return
     if not context.args:
         await update.message.reply_text("Вкажіть посилання: /add https://...")
         return
@@ -104,6 +106,8 @@ async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await _ensure_access(update, context):
+        return
     # склеиваем переносы строк — чтобы URL, разбитый при вставке, восстановился
     text = (update.message.text or "").replace("\n", "").replace("\r", "")
     m = URL_RE.search(text)
