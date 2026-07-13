@@ -83,8 +83,16 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
         "SELECT id FROM items WHERE url = ? AND active = 1", (url,)
     ).fetchone()
     if existing:
-        await update.message.reply_text(
+        dup_msg = await update.message.reply_text(
             f"✅ Це посилання вже відстежується: #{existing['id']}"
+        )
+        # удаляем сообщение юзера со ссылкой + ответ бота через 2 хвилини
+        context.job_queue.run_once(
+            _delete_messages_job,
+            CLEANUP_DELAY_SECONDS,
+            data={"chat_id": chat_id,
+                  "msg_ids": [update.message.message_id, dup_msg.message_id]},
+            name=f"cleanup_dup_{existing['id']}",
         )
         return
     item_id = db.add_item(conn, url, str(chat_id))
