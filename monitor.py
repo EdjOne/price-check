@@ -170,6 +170,64 @@ async def _fetch_playwright(url):
         return None, f"Playwright: {exc}"
 
 
+# Домены-сокращатели (deeplink из приложений/рекламы), которые сами по себе
+# не содержат товар — нужно выполнить JS-редирект через headless-браузер,
+# чтобы получить реальный URL товара.
+_DEEPLINK_HOSTS = ("link.silpo.ua",)
+
+
+def _is_deeplink(url: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return any(host == h or host.endswith("." + h) for h in _DEEPLINK_HOSTS)
+    except Exception:
+        return False
+
+
+async def _resolve_deeplink(url: str) -> str | None:
+    """Выполняет JS-редирект короткой ссылки и возвращает реальный URL товара.
+
+    Возвращает None, если резолв не удался (Playwright недоступен / таймаут).
+    """
+    if not PLAYWRIGHT_AVAILABLE:
+        return None
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage",
+                      "--disable-blink-features=AutomationControlled", "--headless=new"],
+            )
+            ctx = await browser.new_context(
+                user_agent=HEADERS["User-Agent"],
+                locale="uk-UA", timezone_id="Europe/Kyiv",
+                viewport={"width": 1366, "height": 768},
+            )
+            await ctx.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+            )
+            page = await ctx.new_page()
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await page.wait_for_timeout(5000)
+            except Exception:  # noqa: BLE001
+                pass
+            resolved = page.url
+            await browser.close()
+            if resolved and resolved != url and not _is_deeplink(resolved):
+                return resolved
+            return None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("resolve_deeplink %s failed: %s", url, exc)
+        return None
+
+
 async def fetch(url: str) -> tuple[str | None, str | None]:
     """Возвращает (html, error). error=None при успехе."""
     r, err = await _fetch_requests(url)
@@ -204,7 +262,20 @@ async def fetch(url: str) -> tuple[str | None, str | None]:
 async def check_item(conn, item, bot=None) -> dict:
     item_id = item["id"]
     url = item["url"]
-    html, err = await fetch(url)
+    # короткие deeplink-ссылки (link.silpo.ua и т.п.) резолвим в реальный URL
+    # один раз и кэшируем в resolved_url, чтобы не гонять Playwright каждый раз
+    effective_url = url
+    if _is_deeplink(url):
+        cached = item["resolved_url"] if "resolved_url" in item.keys() else None
+        if cached:
+            effective_url = cached
+        else:
+            resolved = await _resolve_deeplink(url)
+            if resolved:
+                effective_url = resolved
+                db.set_resolved_url(conn, item_id, resolved)
+                logger.info("deeplink %s -> %s", url, resolved)
+    html, err = await fetch(effective_url)
     result = {"id": item_id, "url": url, "ok": False, "changed": False,
               "old": item["last_price"], "new": None, "currency": item["currency"],
               "error": None}

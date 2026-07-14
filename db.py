@@ -25,9 +25,15 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
             chat_id      TEXT,
             last_checked TEXT,
             created_at   TEXT NOT NULL,
-            active       INTEGER NOT NULL DEFAULT 1
+            active       INTEGER NOT NULL DEFAULT 1,
+            resolved_url TEXT
         )"""
     )
+    # резолвнутый (реальный) URL для коротких deeplink-ссылок (link.silpo.ua и т.п.)
+    try:
+        conn.execute("ALTER TABLE items ADD COLUMN resolved_url TEXT")
+    except sqlite3.OperationalError:
+        pass  # колонка уже есть
     conn.execute(
         """CREATE TABLE IF NOT EXISTS price_history (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,6 +126,12 @@ def remove_item(conn, item_id: int, chat_id: Optional[str] = None) -> bool:
 
 def deactivate(conn, item_id: int):
     conn.execute("UPDATE items SET active = 0 WHERE id = ?", (item_id,))
+    conn.commit()
+
+
+def set_resolved_url(conn, item_id: int, resolved_url: str):
+    """Сохраняет резолвнутый (реальный) URL для коротких deeplink-ссылок."""
+    conn.execute("UPDATE items SET resolved_url = ? WHERE id = ?", (resolved_url, item_id))
     conn.commit()
 
 

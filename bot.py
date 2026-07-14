@@ -44,9 +44,7 @@ HELP = (
     "Просто надішліть посилання на товар — і бот візьме його на моніторинг.\n"
     "Коли ціна зміниться, прийде сповіщення.\n\n"
     "Команди:\n"
-    "• /add &lt;посилання&gt; — додати товар\n"
     "• /list — мої товари (кнопки: відкрити / історія / видалити)\n"
-    "• /remove &lt;id&gt; — прибрати товар\n"
     "• /check — перевірити всі зараз\n"
     "• /clear — очистити чат від повідомлень\n"
     "• /history &lt;id&gt; — історія цін\n"
@@ -559,6 +557,11 @@ def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
     conn = db.connect()
+    # авто-апрув владельца бота при старте, чтобы статус не слетал после рестартов
+    if ADMIN_ID:
+        db.upsert_pending(conn, ADMIN_ID, None)
+        db.set_user_status(conn, ADMIN_ID, "approved")
+        logger.info("Admin %s auto-approved on startup", ADMIN_ID)
     from telegram.ext import JobQueue
     # PTB >=22.7 не создаёт job_queue автоматически — инициализируем явно
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).job_queue(JobQueue()).build()
@@ -566,9 +569,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("add", add_cmd))
     app.add_handler(CommandHandler("list", list_cmd))
-    app.add_handler(CommandHandler("remove", remove_cmd))
     app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CommandHandler("check", check_cmd))
     app.add_handler(CommandHandler("clear", clear_cmd))
