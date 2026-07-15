@@ -1,7 +1,7 @@
 # Price Check — AGENTS.md
 
-## Статус (на 2026-07-15)
-- Версия: см. git log (commit 0e38fd9)
+## Статус (на 2026-07-15, вечір)
+- Версия: см. git log (commit 901e596)
 - Сервер: Andrew (`andrew-server`), папка `/mnt/backup/price-check`, systemd `price-check` (User=andrew)
 - База: `price_check.db` (SQLite), 4 юзера, 17 активных товаров (все EdjOne)
 - Бот `active`, проверка каждые 6 ч + `/check` вручную
@@ -9,6 +9,7 @@
 ## Что сделано за сессию
 - ✅ Детект кастомного JS-челленджа магазина (biom.ua: `challenge_passed` cookie + `location.reload()`). Добавлен `_is_js_challenge()` в `monitor.py`, подключён в `fetch()` рядом с `_is_cloudflare()` → такие страницы уходят в headless-браузер (Playwright). Фикс commit `0e38fd9`. Товар #35 (biom.ua батарея) теперь парсится: цена 76106.0 UAH
 - ✅ Обход AWS WAF (makeup.com.ua и др.): убраны `extra_http_headers` (Sec-CH-UA и т.п. — AWS WAF их детектит как бота и отдаёт заглушку «JavaScript is disabled»). В `_fetch_playwright` оставлен `headless=True` (НЕ `--headless=new` — тоже детектится WAF). Добавлен маркер `awswafintegration`/`awsWafCookieDomainList` в `_is_js_challenge()`. Проверено: makeup.com.ua → 1099.0 UAH, notino.ua → 7200.0 UAH, biom.ua → 76106.0 UAH
+- ✅ perfume-boutique-ukr.com парсится через Playwright (SPA-магазин: товары грузятся динамически, мониторить только конкретные товары, НЕ главную). Пример: `/sets/best-men-set` → 3330.0 UAH
 - ✅ Поддержка коротких ссылок `link.silpo.ua` (JS-редирект через Playwright → резолв в `silpo.ua/product/...`, кэш в `resolved_url`)
 - ✅ Авто-апрув админа при старте бота (статус не слетает после рестартов)
 - ✅ Убраны команды `/add` и `/remove` (товары добавляются только ссылкой в чат)
