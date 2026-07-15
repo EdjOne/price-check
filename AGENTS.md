@@ -1,12 +1,13 @@
 # Price Check — AGENTS.md
 
-## Статус (на 2026-07-14)
-- Версия: см. git log (commit d606a0e)
+## Статус (на 2026-07-15)
+- Версия: см. git log (commit 0e38fd9)
 - Сервер: Andrew (`andrew-server`), папка `/mnt/backup/price-check`, systemd `price-check` (User=andrew)
 - База: `price_check.db` (SQLite), 4 юзера, 17 активных товаров (все EdjOne)
 - Бот `active`, проверка каждые 6 ч + `/check` вручную
 
 ## Что сделано за сессию
+- ✅ Детект кастомного JS-челленджа магазина (biom.ua: `challenge_passed` cookie + `location.reload()`). Добавлен `_is_js_challenge()` в `monitor.py`, подключён в `fetch()` рядом с `_is_cloudflare()` → такие страницы уходят в headless-браузер (Playwright). Фикс commit `0e38fd9`. Товар #35 (biom.ua батарея) теперь парсится: цена 76106.0 UAH
 - ✅ Поддержка коротких ссылок `link.silpo.ua` (JS-редирект через Playwright → резолв в `silpo.ua/product/...`, кэш в `resolved_url`)
 - ✅ Авто-апрув админа при старте бота (статус не слетает после рестартов)
 - ✅ Убраны команды `/add` и `/remove` (товары добавляются только ссылкой в чат)
