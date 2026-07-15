@@ -55,6 +55,25 @@ def _is_cloudflare(html: str) -> bool:
             or "enable javascript and cookies to continue" in h)
 
 
+def _is_js_challenge(html: str) -> bool:
+    """Кастомный JS-челлендж магазина (не Cloudflare).
+
+    Сайт отдаёт крошечную HTML-заглушку со скриптом, который крутит
+    цикл, ставит cookie (напр. challenge_passed) и делает reload.
+    Признаки: короткий body + скрипт с document.cookie и location.reload().
+    Такие страницы надо отдавать в headless-браузер (Playwright), который
+    выполнит JS и получит реальный контент.
+    """
+    if not html:
+        return False
+    h = html.lower()
+    cookie_set = "document.cookie" in h
+    reloads = "location.reload" in h or "location.href" in h
+    # типичный маркер собственного челленджа biom.ua и ему подобных
+    known_marker = "challenge_passed" in h
+    return known_marker or (cookie_set and reloads and len(html) < 5000)
+
+
 # Маркеры страниц ошибок (404 / 403 / not found) — их нельзя трактовать как товар.
 _ERROR_TITLE_HINTS = (
     "помилка 404", "страница не найдена", "сторінка не знайдена",
@@ -231,7 +250,8 @@ async def _resolve_deeplink(url: str) -> str | None:
 async def fetch(url: str) -> tuple[str | None, str | None]:
     """Возвращает (html, error). error=None при успехе."""
     r, err = await _fetch_requests(url)
-    if r is not None and r.status_code == 200 and not _is_cloudflare(r.text):
+    if (r is not None and r.status_code == 200
+            and not _is_cloudflare(r.text) and not _is_js_challenge(r.text)):
         # доп. защита: страница ошибки с кодом 200 (редко)
         if not _is_error_page(r.text):
             return r.text, None
