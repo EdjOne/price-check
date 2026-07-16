@@ -71,7 +71,10 @@ def _is_js_challenge(html: str) -> bool:
     reloads = "location.reload" in h or "location.href" in h
     # типичный маркер собственного челленджа biom.ua и ему подобных
     known_marker = "challenge_passed" in h
-    return known_marker or (cookie_set and reloads and len(html) < 5000)
+    # AWS WAF JavaScript challenge (makeup.com.ua и др.)
+    aws_waf = "awswafintegration" in h or "awsWafCookieDomainList" in h
+    return (known_marker or aws_waf
+            or (cookie_set and reloads and len(html) < 5000))
 
 
 # Маркеры страниц ошибок (404 / 403 / not found) — их нельзя трактовать как товар.
@@ -121,13 +124,14 @@ async def _fetch_playwright(url):
         # для молдавских сайтов — локаль браузера молдавская
         md = tld == "md"
         launch_kwargs = {
-            # --headless=new детектится Cloudflare слабее, чем старый headless=True
+            # headless=True (НЕ --headless=new!): AWS WAF и ряд других
+            # JS-челленджей детектят --headless=new и блокируют браузер.
+            # Старый headless=True + AutomationControlled off проходит чище.
             "headless": True,
             "args": [
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled",
-                "--headless=new",
             ],
         }
         if PROXY_URL:
@@ -142,21 +146,8 @@ async def _fetch_playwright(url):
                 locale="ro-MD" if md else "uk-UA",
                 timezone_id="Europe/Chisinau" if md else "Europe/Kyiv",
                 viewport={"width": 1366, "height": 768},
-                extra_http_headers={
-                    "Accept-Language": "ro-MD,ro;q=0.9,ru;q=0.8,en;q=0.7" if md
-                                      else "uk-UA,uk;q=0.9,ru;q=0.8,en;q=0.7",
-                    "Accept": (
-                        "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                        "image/avif,image/webp,*/*;q=0.8"
-                    ),
-                    "Sec-CH-UA": (
-                        '"Chromium";v="124", "Google Chrome";v="124", '
-                        '"Not-A.Brand";v="99"'
-                    ),
-                    "Sec-CH-UA-Mobile": "?0",
-                    "Sec-CH-UA-Platform": '"Windows"',
-                    "Upgrade-Insecure-Requests": "1",
-                },
+                # NB: НЕ ставим extra_http_headers (Sec-CH-UA и т.п.) —
+                # AWS WAF их детектит как бота и отдаёт JS-заглушку.
             )
             # прячем navigator.webdriver
             await ctx.add_init_script(
@@ -165,7 +156,10 @@ async def _fetch_playwright(url):
             )
             page = await ctx.new_page()
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            # даём Cloudflare время пройти JS-челлендж
+            # даём Cloudflare/AWS WAF время пройти JS-челлендж.
+            # Сначала пробуем дождаться networkidle, затем — явно ждём,
+            # пока страница перестанет быть заглушкой челленджа
+            # (AWS WAF делает forceRefresh и подменяет контент).
             try:
                 await page.wait_for_load_state("networkidle", timeout=20000)
             except Exception:  # noqa: BLE001
@@ -173,13 +167,16 @@ async def _fetch_playwright(url):
             try:
                 await page.wait_for_function(
                     "() => { const t = document.body.innerText || ''; "
-                    "return !/зачекайте|just a moment|verify you are human/i.test(t) "
+                    "const h = document.documentElement.outerHTML || ''; "
+                    "return !/зачекайте|just a moment|verify you are human"
+                    "|javascript is disabled|awswafintegration/i.test((t + h).toLowerCase()) "
                     "&& document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; }",
-                    timeout=25000,
+                    timeout=30000,
                 )
             except Exception:  # noqa: BLE001
                 try:
-                    await page.wait_for_timeout(8000)
+                    # запасной варіант: просто чекаємо, поки WAF доробить
+                    await page.wait_for_timeout(15000)
                 except Exception:  # noqa: BLE001
                     pass
             html = await page.content()

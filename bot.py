@@ -14,6 +14,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+from datetime import time as dtime
+from zoneinfo import ZoneInfo
+
+KYIV = ZoneInfo("Europe/Kyiv")
+CHECK_TIMES = [(8, 0), (12, 0), (17, 0), (23, 0)]  # по Киеву
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -584,13 +589,13 @@ def main():
 
     app.add_error_handler(error_handler)
 
-    app.job_queue.run_repeating(
-        scheduled_check,
-        interval=CHECK_INTERVAL_HOURS * 3600,
-        first=30,
-        name="price_check",
-    )
-    logger.info("Bot started. Check interval = %s h", CHECK_INTERVAL_HOURS)
+    for hh, mm in CHECK_TIMES:
+        app.job_queue.run_daily(
+            scheduled_check,
+            time=dtime(hh, mm, tzinfo=KYIV),
+            name=f"price_check_{hh:02d}{mm:02d}",
+        )
+    logger.info("Bot started. Scheduled checks (Kyiv): %s", CHECK_TIMES)
     app.run_polling()
 
 
