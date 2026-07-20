@@ -52,7 +52,7 @@ def _is_cloudflare(html: str) -> bool:
         return False
     h = html.lower()
     return ("just a moment" in h or "cf-chl" in h
-            or "challenge-platform" in h or "__cf_chl" in h
+            or "__cf_chl" in h
             or "enable javascript and cookies to continue" in h
             # украиноязычная / локализованная страница проверки Cloudflare
             or "триває перевірка безпеки" in h

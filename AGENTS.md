@@ -20,7 +20,7 @@
 - ✅ **deka.ua → чёрный список**: Cloudflare Managed Challenge, Playwright не пробивает (таймаут, «Трохи зачекайте…»).
 - ✅ **4f.ua → чёрный список**: CDN дропает IP сервера (HTTP:000, 0 байт, `ERR_HTTP2_PROTOCOL_ERROR`). Сайт с сервера недоступен.
 - ✅ **letyshops-парсинг**: спарсили список магазинов с `letyshops.com/ua/shops`, прогнали живьём через `fetch`+`extract` только NEW-магазины (без дублей). Рабочие добавлены в `known_shops`: `apteka911.ua` (5.0), `citrus.ua` (2299.0), `modnakasta.ua` (199.0), `estro.ua` (3390.0), `stylus.ua`→`stls.store` (1199.0). Не добавлены (403/DNS/не магазин): `iherb.com`, `notino.ua`, `allegro.pl`, `sinsay.ua`, `knigarnia.ua`, `budinok-igrashok.ua`, `hotline.ua`.
-- ✅ `_is_cloudflare()` расширен — ловит украиноязычную страницу проверки («Триває перевірка безпеки» / «сервіс безпеки» / «перевірка пройшла успішно»).
+- ✅ **itmag.ua починен**: `_is_cloudflare()` ложно срабатывал на маркер `challenge-platform` (есть в обычном JS сайта, не только в челлендже Cloudflare) → `fetch` уходил в Playwright и зависал (45с). Убрал `challenge-platform` как отдельный маркер (оставил точные `cf-chl`/`__cf_chl`/укр-фразы). Теперь itmag.ua парсится через requests за ~1с (цена в `<span class="product-price">`). Товар #187 (499 UAH).
 - ✅ `_looks_empty_spa()` — детект React/Vue-скелета без цены → Playwright.
 
 ## Универсальные фиксы парсера (накоплено)
