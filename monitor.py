@@ -266,6 +266,7 @@ _PROXY_REQUIRED_HOSTS = (
     "deka.ua",
     "4f.ua",
     "hm.com",
+    "leroymerlin.ua",
 )
 
 

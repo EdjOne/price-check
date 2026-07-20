@@ -94,8 +94,8 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
         except Exception:  # noqa: BLE001
             host = url
         await update.message.reply_text(
-            f"❌ Магазин <b>{host}</b> наразі не підтримується ботом "
-            f"(Cloudflare-захист). Оберіть, будь ласка, інший магазин."
+            f"❌ Магазин <b>{host}</b> наразі не підтримується ботом. "
+            f"Оберіть, будь ласка, інший магазин."
         )
         return
     existing = conn.execute(
@@ -376,7 +376,7 @@ async def shops_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts.append("🛒 Поки немає перевірених магазинів у базі.")
 
     if blocked:
-        parts.append("\n⛔ <b>Не підтримується (Cloudflare-захист):</b>")
+        parts.append("\n⛔ <b>Не підтримується:</b>")
         for d in sorted(blocked):
             parts.append(f"• {d}")
 
