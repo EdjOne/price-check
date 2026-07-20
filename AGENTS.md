@@ -9,7 +9,7 @@
 ## Таблицы магазинов
 - `known_shops` (61 домен) — белый список проверенных магазинов. Автозаполняется при успешном `check_item` (`db.touch_known_shop`). НЕ привязан к товарам юзеров.
 - `unknown_shops` (0) — магазины, где цену не взяли, но НЕ в чёрном списке (ждут доработки парсера).
-- Чёрный список `PROXY_REQUIRED_HOSTS` в `monitor.py`: `ya.ua`, `deka.ua`, `4f.ua` (Cloudflare Managed Challenge / CDN-дроп IP — браузер без резидентного прокси не пробивает).
+- Чёрный список `PROXY_REQUIRED_HOSTS` в `monitor.py`: `ya.ua`, `deka.ua`, `4f.ua`, `hm.com` (Cloudflare Managed Challenge / CDN-дроп IP / Akamai — браузер без резидентного прокси не пробивает).
 - `_PLAYWRIGHT_ALWAYS` в `monitor.py`: `styx.odessa.ua` (цена грузится JS/AJAX после DOM, requests не берёт — всегда через браузер).
 
 ## Что сделано за сессию (2026-07-20)
@@ -21,6 +21,8 @@
 - ✅ **4f.ua → чёрный список**: CDN дропает IP сервера (HTTP:000, 0 байт, `ERR_HTTP2_PROTOCOL_ERROR`). Сайт с сервера недоступен.
 - ✅ **letyshops-парсинг**: спарсили список магазинов с `letyshops.com/ua/shops`, прогнали живьём через `fetch`+`extract` только NEW-магазины (без дублей). Рабочие добавлены в `known_shops`: `apteka911.ua` (5.0), `citrus.ua` (2299.0), `modnakasta.ua` (199.0), `estro.ua` (3390.0), `stylus.ua`→`stls.store` (1199.0). Не добавлены (403/DNS/не магазин): `iherb.com`, `notino.ua`, `allegro.pl`, `sinsay.ua`, `knigarnia.ua`, `budinok-igrashok.ua`, `hotline.ua`.
 - ✅ **itmag.ua починен**: `_is_cloudflare()` ложно срабатывал на маркер `challenge-platform` (есть в обычном JS сайта, не только в челлендже Cloudflare) → `fetch` уходил в Playwright и зависал (45с). Убрал `challenge-platform` как отдельный маркер (оставил точные `cf-chl`/`__cf_chl`/укр-фразы). Теперь itmag.ua парсится через requests за ~1с (цена в `<span class="product-price">`). Товар #187 (499 UAH).
+- ✅ **skay.ua работает**: цена 5799 UAH через requests. Товар #192, добавлен в `known_shops`.
+- ✅ **hm.com → чёрный список**: Akamai (`AkamaiGHost`, `edgesuite.net`) банит IP сервера — `403 Access Denied` и в requests, и в Playwright. Сайт недоступен.
 - ✅ `_looks_empty_spa()` — детект React/Vue-скелета без цены → Playwright.
 
 ## Универсальные фиксы парсера (накоплено)
