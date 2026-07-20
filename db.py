@@ -51,10 +51,16 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
             username   TEXT,
             status     TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | denied
             created_at TEXT NOT NULL,
-            decided_at TEXT
+            decided_at TEXT,
+            link_limit INTEGER NOT NULL DEFAULT 50  -- лимит активных товаров (0 = безлимит, только для админа)
         )"""
     )
+    # миграция: добавляем колонку, если таблица уже была (безопасно при повторном запуске)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+    if "link_limit" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN link_limit INTEGER NOT NULL DEFAULT 50")
     conn.commit()
+    ensure_limit_requests_table(conn)
     return conn
 
 
@@ -78,6 +84,84 @@ def set_user_status(conn, chat_id: str, status: str):
     conn.execute(
         "UPDATE users SET status = ?, decided_at = ? WHERE chat_id = ?",
         (status, _now(), str(chat_id)),
+    )
+    conn.commit()
+
+
+# --- Лимиты активных товаров на юзера ---
+
+def get_link_limit(conn, chat_id: str) -> int:
+    """Лимит активных товаров для юзера. 0 = безлимит (админ)."""
+    row = conn.execute(
+        "SELECT link_limit FROM users WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    if row is None:
+        return 50  # неизвестный юзер (до апрува) — дефолт
+    return row["link_limit"] or 0
+
+
+def count_active(conn, chat_id: str) -> int:
+    """Сколько активных товаров сейчас на мониторинге у юзера."""
+    return conn.execute(
+        "SELECT COUNT(*) FROM items WHERE chat_id = ? AND active = 1",
+        (str(chat_id),),
+    ).fetchone()[0]
+
+
+def bump_link_limit(conn, chat_id: str, delta: int = 10):
+    """Увеличивает лимит на delta (админ подтвердил запрос)."""
+    conn.execute(
+        "UPDATE users SET link_limit = link_limit + ? WHERE chat_id = ?",
+        (delta, str(chat_id)),
+    )
+    conn.commit()
+
+
+def set_link_limit(conn, chat_id: str, val: int):
+    """Жёстко ставит лимит (на случай ручной правки)."""
+    conn.execute(
+        "UPDATE users SET link_limit = ? WHERE chat_id = ?", (val, str(chat_id))
+    )
+    conn.commit()
+
+
+def ensure_admin_unlimited(conn, admin_id: str | None):
+    """Админ = безлимит (link_limit=0). Вызывается при старте."""
+    if not admin_id:
+        return
+    conn.execute(
+        "UPDATE users SET link_limit = 0 WHERE chat_id = ?", (str(admin_id),)
+    )
+    conn.commit()
+
+
+def mark_limit_request(conn, chat_id: str, status: str):
+    """status: 'open' | 'approved' | 'denied'. Один открытый запрос на юзера."""
+    conn.execute(
+        "DELETE FROM limit_requests WHERE chat_id = ?", (str(chat_id),)
+    )
+    conn.execute(
+        "INSERT INTO limit_requests (chat_id, status, created_at) VALUES (?, ?, ?)",
+        (str(chat_id), status, _now()),
+    )
+    conn.commit()
+
+
+def get_open_limit_request(conn, chat_id: str):
+    row = conn.execute(
+        "SELECT * FROM limit_requests WHERE chat_id = ? AND status = 'open'",
+        (str(chat_id),),
+    ).fetchone()
+    return row
+
+
+def ensure_limit_requests_table(conn):
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS limit_requests (
+            chat_id    TEXT PRIMARY KEY,
+            status     TEXT NOT NULL,  -- open | approved | denied
+            created_at TEXT NOT NULL
+        )"""
     )
     conn.commit()
 

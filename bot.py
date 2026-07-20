@@ -114,6 +114,26 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
             name=f"cleanup_dup_{existing['id']}",
         )
         return
+    # --- лимит активных товаров на юзера ---
+    if not (ADMIN_ID and str(chat_id) == str(ADMIN_ID)):
+        limit = db.get_link_limit(conn, chat_id)
+        count = db.count_active(conn, chat_id)
+        if limit and count >= limit:
+            # уже есть открытый запрос — не спамим повторно
+            if db.get_open_limit_request(conn, chat_id):
+                await update.message.reply_text(
+                    f"⏳ Ваш запит на +10 посилань уже надіслано. Очікуйте рішення власника."
+                )
+                return
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("➕ Запитати +10", callback_data=f"req_limit:{chat_id}"),
+            ]])
+            await update.message.reply_text(
+                f"🚫 Ліміт посилань: <b>{count}/{limit}</b> на людину.\n"
+                f"Щоб отримати ще 10 — надішліть запит власнику бота.",
+                parse_mode="HTML", reply_markup=kb,
+            )
+            return
     item_id = db.add_item(conn, url, str(chat_id))
     checking_msg = await update.message.reply_text(f"🔄 Перевіряю посилання #{item_id}…")
     item = db.get_item(conn, item_id)
@@ -357,6 +377,91 @@ async def cb_shop_taken(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"(після дописання парсера ціни оновляться).",
         parse_mode="HTML",
     )
+
+
+# --- Лимиты: запрос юзера + аппрув админом ---
+
+async def cb_req_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Юзер нажал «Запитати +10» — шлём админу уведомление с кнопками."""
+    q = update.callback_query
+    chat_id = q.data.split(":", 1)[1]
+    conn = context.bot_data["conn"]
+    if db.get_open_limit_request(conn, chat_id):
+        await q.answer("Запит уже надіслано ✅")
+        return
+    user = db.get_user(conn, chat_id)
+    uname = (user or {}).get("username") or "—"
+    fname = q.from_user.full_name if q.from_user else "—"
+    label = f"@{uname}" if uname != "—" else (fname or str(chat_id))
+    count = db.count_active(conn, chat_id)
+    limit = db.get_link_limit(conn, chat_id)
+    db.mark_limit_request(conn, chat_id, "open")
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Підтвердити +10", callback_data=f"limit_ok:{chat_id}"),
+        InlineKeyboardButton("❌ Відхилити", callback_data=f"limit_deny:{chat_id}"),
+    ]])
+    if ADMIN_ID:
+        await context.bot.send_message(
+            chat_id=int(ADMIN_ID),
+            text=f"🔔 <b>Запит на +10 посилань</b>\n"
+                 f"👤 Юзер: {label} (ID: <code>{chat_id}</code>)\n"
+                 f"📊 Зараз на моніторингу: <b>{count}</b> з ліміту {limit}\n"
+                 f"📈 Після +10 буде: <b>{count}</b> з {limit + 10}",
+            parse_mode="HTML", reply_markup=kb,
+        )
+    await q.answer("Запит надіслано ✅")
+    try:
+        await q.edit_message_text(
+            f"⏳ Запит на +10 посилань надіслано власнику. Очікуйте підтвердження."
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def cb_limit_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Админ подтвердил +10."""
+    q = update.callback_query
+    chat_id = q.data.split(":", 1)[1]
+    conn = context.bot_data["conn"]
+    db.bump_link_limit(conn, chat_id, 10)
+    db.mark_limit_request(conn, chat_id, "approved")
+    limit = db.get_link_limit(conn, chat_id)
+    count = db.count_active(conn, chat_id)
+    await q.answer("✅ Підтверджено +10")
+    await q.edit_message_text(
+        f"✅ <code>{chat_id}</code>: ліміт збільшено на 10. Тепер новий ліміт: <b>{limit}</b>.",
+        parse_mode="HTML",
+    )
+    try:
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text=f"✅ Вам підтверджено +10 посилань! Новий ліміт: <b>{limit}</b> "
+                 f"(зараз на моніторингу {count}).",
+            parse_mode="HTML",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def cb_limit_deny(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Админ отклонил."""
+    q = update.callback_query
+    chat_id = q.data.split(":", 1)[1]
+    conn = context.bot_data["conn"]
+    db.mark_limit_request(conn, chat_id, "denied")
+    await q.answer("❌ Відхилено")
+    await q.edit_message_text(
+        f"❌ <code>{chat_id}</code>: запит відхилено.",
+        parse_mode="HTML",
+    )
+    try:
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text="❌ Вам відмовлено у збільшенні ліміту. Звільніть місце, видаливши "
+                 "частину посилань (команда /list → видалити) — і зможете додати нові.",
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def shops_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -633,6 +738,8 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app: Application):
     """Регистрируем меню команд — Telegram показывает подсказку при вводе '/'."""
+    # админ = безлимит (link_limit=0)
+    db.ensure_admin_unlimited(app.bot_data["conn"], ADMIN_ID)
     await app.bot.set_my_commands([
         BotCommand("list", "📋 Мої товари"),
         BotCommand("check", "🔄 Перевірити всі ціни зараз"),
@@ -676,6 +783,9 @@ def main():
     app.add_handler(CallbackQueryHandler(cb_approve, pattern="^approve:"))
     app.add_handler(CallbackQueryHandler(cb_deny, pattern="^deny:"))
     app.add_handler(CallbackQueryHandler(cb_shop_taken, pattern="^shop_taken:"))
+    app.add_handler(CallbackQueryHandler(cb_req_limit, pattern="^req_limit:"))
+    app.add_handler(CallbackQueryHandler(cb_limit_approve, pattern="^limit_ok:"))
+    app.add_handler(CallbackQueryHandler(cb_limit_deny, pattern="^limit_deny:"))
     app.add_handler(CallbackQueryHandler(cb_noop, pattern="^noop$"))
 
     app.add_error_handler(error_handler)
