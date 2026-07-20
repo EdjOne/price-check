@@ -8,6 +8,7 @@
   /remove <id>   — убрать товар
   /check         — принудительно проверить всё сейчас
   /history <id>  — история цен
+  /shops         — список поддерживаемых и неподдерживаемых магазинов
 """
 from __future__ import annotations
 
@@ -51,6 +52,7 @@ HELP = (
     "Команди:\n"
     "• /list — мої товари (кнопки: відкрити / історія / видалити)\n"
     "• /check — перевірити всі зараз\n"
+    "• /shops — які магазини бот уміє читати\n"
     "• /clear — очистити чат від повідомлень\n"
     "• /history &lt;id&gt; — історія цін\n"
     "• /help — ця довідка"
@@ -82,6 +84,20 @@ async def _delete_messages_job(context: ContextTypes.DEFAULT_TYPE):
 
 async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, chat_id):
     conn = context.bot_data["conn"]
+    # магазин, который не парсится без резидентного прокси (Cloudflare и т.п.)
+    if monitor.is_proxy_required(url):
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).netloc.lower()
+            if host.startswith("www."):
+                host = host[4:]
+        except Exception:  # noqa: BLE001
+            host = url
+        await update.message.reply_text(
+            f"❌ Магазин <b>{host}</b> наразі не підтримується ботом "
+            f"(Cloudflare-захист). Оберіть, будь ласка, інший магазин."
+        )
+        return
     existing = conn.execute(
         "SELECT id FROM items WHERE url = ? AND active = 1", (url,)
     ).fetchone()
@@ -116,11 +132,30 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
             )
             to_delete.append(added_msg.message_id)
     else:
+        domain = monitor.shop_domain(url)
+        # магазин не в чёрном списке, но цену не взяли — неизвестный магазин
+        conn.execute(
+            "UPDATE items SET shop_status = 'unknown', active = 0 WHERE id = ?", (item_id,)
+        )
+        conn.commit()
         added_msg = await update.message.reply_text(
             f"⚠️ Посилання #{item_id} додано, але ціну не вдалося визначити "
             f"({res.get('error')}). Перевірю пізніше."
         )
         to_delete.append(added_msg.message_id)
+        # админу — только при ПЕРВОМ появлении этого магазина
+        if ADMIN_ID and db.mark_unknown_shop(conn, domain, str(chat_id), url):
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Взяв у роботу", callback_data=f"shop_taken:{domain}"),
+            ]])
+            await context.bot.send_message(
+                chat_id=int(ADMIN_ID),
+                text=f"🔧 <b>Новий невідомий магазин</b> потребує дописання парсера:\n"
+                     f"🌐 Домен: <code>{domain}</code>\n"
+                     f"👤 Юзер: <code>{chat_id}</code>\n"
+                     f"🔗 Приклад: {url}",
+                parse_mode="HTML", reply_markup=kb,
+            )
     # сообщение "Взяв на моніторинг" (из monitor.check_item)
     if res.get("monitor_msg_id"):
         to_delete.append(res["monitor_msg_id"])
@@ -302,6 +337,56 @@ async def cb_deny(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                       text="⛔ Доступ заборонено власником бота.")
     except Exception:  # noqa: BLE001
         pass
+
+
+async def cb_shop_taken(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Админ нажал «Взяв у роботу» у уведомлении про неизвестный магазин."""
+    q = update.callback_query
+    domain = q.data.split(":", 1)[1]
+    conn = context.bot_data["conn"]
+    db.set_unknown_shop_taken(conn, domain)
+    # реактивируем все товары этого магазина (когда допишем парсер — заработают)
+    conn.execute(
+        "UPDATE items SET active = 1 WHERE shop_status = 'unknown' AND url LIKE ?",
+        (f"%{domain}%",),
+    )
+    conn.commit()
+    await q.answer("✅ Прийнято")
+    await q.edit_message_text(
+        f"✅ Магазин <code>{domain}</code> взято у роботу. Товари реактивовано "
+        f"(після дописання парсера ціни оновляться).",
+        parse_mode="HTML",
+    )
+
+
+async def shops_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает список магазинов: поддерживаемые + неподдерживаемые."""
+    conn = context.bot_data["conn"]
+    shops = db.list_known_shops(conn)
+    unknown = db.list_unknown_shops(conn)
+    blocked = list(monitor._PROXY_REQUIRED_HOSTS)
+
+    parts = []
+    if shops:
+        parts.append("🛒 <b>Магазини, які бот уміє читати:</b>")
+        for s in shops:
+            parts.append(f"• {s['domain']}")
+        parts.append(f"Всього: {len(shops)}")
+    else:
+        parts.append("🛒 Поки немає перевірених магазинів у базі.")
+
+    if blocked:
+        parts.append("\n⛔ <b>Не підтримується (Cloudflare-захист):</b>")
+        for d in sorted(blocked):
+            parts.append(f"• {d}")
+
+    if unknown:
+        parts.append("\n🔧 <b>Невідомі (треба дописати парсер):</b>")
+        for u in unknown:
+            taken = " ✅ взято" if u["taken"] else ""
+            parts.append(f"• {u['domain']}{taken}")
+
+    await update.message.reply_text("\n".join(parts), parse_mode="HTML")
 
 
 async def _send_list(target, context: ContextTypes.DEFAULT_TYPE, items):
@@ -551,6 +636,7 @@ async def post_init(app: Application):
     await app.bot.set_my_commands([
         BotCommand("list", "📋 Мої товари"),
         BotCommand("check", "🔄 Перевірити всі ціни зараз"),
+        BotCommand("shops", "🛒 Які магазини підтримуються"),
         BotCommand("clear", "🧹 Очистити чат"),
         BotCommand("history", "📜 Історія цін (/history <id>)"),
         BotCommand("help", "❓ Довідка"),
@@ -562,6 +648,9 @@ def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
     conn = db.connect()
+    # ensure unknown_shops + known_shops tables exist at startup
+    db.ensure_unknown_shops_table(conn)
+    db.ensure_known_shops_table(conn)
     # авто-апрув владельца бота при старте, чтобы статус не слетал после рестартов
     if ADMIN_ID:
         db.upsert_pending(conn, ADMIN_ID, None)
@@ -577,6 +666,7 @@ def main():
     app.add_handler(CommandHandler("list", list_cmd))
     app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CommandHandler("check", check_cmd))
+    app.add_handler(CommandHandler("shops", shops_cmd))
     app.add_handler(CommandHandler("clear", clear_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
@@ -585,6 +675,7 @@ def main():
     app.add_handler(CallbackQueryHandler(cb_hist, pattern="^hist:"))
     app.add_handler(CallbackQueryHandler(cb_approve, pattern="^approve:"))
     app.add_handler(CallbackQueryHandler(cb_deny, pattern="^deny:"))
+    app.add_handler(CallbackQueryHandler(cb_shop_taken, pattern="^shop_taken:"))
     app.add_handler(CallbackQueryHandler(cb_noop, pattern="^noop$"))
 
     app.add_error_handler(error_handler)

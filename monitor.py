@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import requests
 from datetime import datetime, timezone
 
@@ -52,7 +53,12 @@ def _is_cloudflare(html: str) -> bool:
     h = html.lower()
     return ("just a moment" in h or "cf-chl" in h
             or "challenge-platform" in h or "__cf_chl" in h
-            or "enable javascript and cookies to continue" in h)
+            or "enable javascript and cookies to continue" in h
+            # украиноязычная / локализованная страница проверки Cloudflare
+            or "триває перевірка безпеки" in h
+            or "сервіс безпеки" in h
+            or "перевірка пройшла успішно" in h
+            or "перевірка безпеки" in h and "не бот" in h)
 
 
 def _is_js_challenge(html: str) -> bool:
@@ -75,6 +81,40 @@ def _is_js_challenge(html: str) -> bool:
     aws_waf = "awswafintegration" in h or "awsWafCookieDomainList" in h
     return (known_marker or aws_waf
             or (cookie_set and reloads and len(html) < 5000))
+
+
+def _looks_empty_spa(html: str) -> bool:
+    """True, если это пустой SPA-скелет без товара (контент грузится JS).
+
+    Некоторые магазины (fora.ua и др.) отдают на requests валидный HTTP 200,
+    но HTML — это короткий каркас React/Vue без цены; реальные данные
+    подгружаются XHR-запросами уже в браузере. Такой ответ нельзя парсить —
+    надо отдать URL в Playwright, который выполнит JS и дождётся цены.
+
+    Признак: в HTML нет НИ одного источника цены (ld+json с price / og:price /
+    itemprop=price / число рядом с грн/₴/UAH) И присутствуют JS-бандлы SPA.
+    """
+    if not html:
+        return False
+    h = html.lower()
+    has_price_signal = (
+        '"price"' in h
+        or "og:price" in h
+        or 'itemprop="price"' in h
+        or "product:price" in h
+        or re.search(r"\d[\d\s.,]*\s*(грн|₴|uah)", h) is not None
+    )
+    if has_price_signal:
+        return False
+    # признаки SPA-каркаса: react/vue-бандлы или пустой root-контейнер
+    spa_marker = (
+        "/js/react" in h
+        or "webpackchunk" in h
+        or 'id="root"' in h
+        or 'id="app"' in h
+        or "data-react" in h
+    )
+    return spa_marker
 
 
 # Маркеры страниц ошибок (404 / 403 / not found) — их нельзя трактовать как товар.
@@ -168,14 +208,17 @@ async def _fetch_playwright(url):
                 await page.wait_for_function(
                     "() => { const t = document.body.innerText || ''; "
                     "const h = document.documentElement.outerHTML || ''; "
-                    "return !/зачекайте|just a moment|verify you are human"
-                    "|javascript is disabled|awswafintegration/i.test((t + h).toLowerCase()) "
-                    "&& document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; }",
+                    "const clean = !/зачекайте|just a moment|verify you are human"
+                    "|javascript is disabled|awswafintegration/i.test((t + h).toLowerCase()); "
+                    "if (!clean) return false; "
+                    "const hasNode = document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; "
+                    "const hasPriceText = /\\d[\\d\\s.,]*\\s*(грн|₴|uah)/i.test(t); "
+                    "return hasNode || hasPriceText; }",
                     timeout=30000,
                 )
             except Exception:  # noqa: BLE001
                 try:
-                    # запасной варіант: просто чекаємо, поки WAF доробить
+                    # запасной варіант: просто чекаємо, поки WAF/SPA доробить
                     await page.wait_for_timeout(15000)
                 except Exception:  # noqa: BLE001
                     pass
@@ -190,6 +233,40 @@ async def _fetch_playwright(url):
 # не содержат товар — нужно выполнить JS-редирект через headless-браузер,
 # чтобы получить реальный URL товара.
 _DEEPLINK_HOSTS = ("link.silpo.ua",)
+
+
+# Магазины, которые НЕ парсятся ботом без резидентного прокси (Cloudflare
+# Managed Challenge и т.п. — реального контента в ответе нет, только заглушка
+# «зачекайте»). Добавлять сюда ТОЛЬКО проверенные случаи, где fetch() реально
+# возвращает 403/челлендж и цену не вытащить. НЕ писать сюда рабочие магазины!
+_PROXY_REQUIRED_HOSTS = (
+    "ya.ua",
+    "deka.ua",
+)
+
+
+def is_proxy_required(url: str) -> bool:
+    """True, если магазин из URL требует резидентный прокси (не парсится)."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return any(host == h or host.endswith("." + h) for h in _PROXY_REQUIRED_HOSTS)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def shop_domain(url: str) -> str:
+    """Возвращает SLD магазина из URL: https://silpo.ua/x -> silpo.ua."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host
+    except Exception:  # noqa: BLE001
+        return url
 
 
 def _is_deeplink(url: str) -> bool:
@@ -248,7 +325,8 @@ async def fetch(url: str) -> tuple[str | None, str | None]:
     """Возвращает (html, error). error=None при успехе."""
     r, err = await _fetch_requests(url)
     if (r is not None and r.status_code == 200
-            and not _is_cloudflare(r.text) and not _is_js_challenge(r.text)):
+            and not _is_cloudflare(r.text) and not _is_js_challenge(r.text)
+            and not _looks_empty_spa(r.text)):
         # доп. защита: страница ошибки с кодом 200 (редко)
         if not _is_error_page(r.text):
             return r.text, None
@@ -309,6 +387,12 @@ async def check_item(conn, item, bot=None) -> dict:
     result["ok"] = True
     result["new"] = price
     result["currency"] = currency or result["currency"]
+
+    # магазин реально отдал цену — отмечаем как проверенный (known_shops)
+    try:
+        db.touch_known_shop(conn, shop_domain(url))
+    except Exception:  # noqa: BLE001
+        pass
 
     if title and not item["title"]:
         conn.execute("UPDATE items SET title = ? WHERE id = ?", (title, item_id))

@@ -26,12 +26,13 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
             last_checked TEXT,
             created_at   TEXT NOT NULL,
             active       INTEGER NOT NULL DEFAULT 1,
-            resolved_url TEXT
+            resolved_url TEXT,
+            shop_status  TEXT NOT NULL DEFAULT 'known'
         )"""
     )
-    # резолвнутый (реальный) URL для коротких deeplink-ссылок (link.silpo.ua и т.п.)
+    # shop_status: known | unknown | unsupported
     try:
-        conn.execute("ALTER TABLE items ADD COLUMN resolved_url TEXT")
+        conn.execute("ALTER TABLE items ADD COLUMN shop_status TEXT NOT NULL DEFAULT 'known'")
     except sqlite3.OperationalError:
         pass  # колонка уже есть
     conn.execute(
@@ -156,3 +157,91 @@ def history(conn, item_id: int, limit: int = 50):
 
 def all_active(conn):
     return conn.execute("SELECT * FROM items WHERE active = 1 ORDER BY id").fetchall()
+
+
+def ensure_unknown_shops_table(conn):
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS unknown_shops (
+            domain      TEXT PRIMARY KEY,
+            first_seen  TEXT NOT NULL,
+            first_user  TEXT,
+            sample_url  TEXT,
+            notified    INTEGER NOT NULL DEFAULT 0,
+            taken       INTEGER NOT NULL DEFAULT 0,
+            taken_at    TEXT
+        )"""
+    )
+    conn.commit()
+
+
+def mark_unknown_shop(conn, domain: str, chat_id: str, url: str) -> bool:
+    """Регистрирует неизвестный магазин. Возвращает True, если это ПЕРВЫЙ раз
+    (т.е. админу надо слать уведомление)."""
+    ensure_unknown_shops_table(conn)
+    row = conn.execute("SELECT * FROM unknown_shops WHERE domain = ?", (domain,)).fetchone()
+    if row:
+        return False  # уже видели — не спамим
+    conn.execute(
+        "INSERT INTO unknown_shops (domain, first_seen, first_user, sample_url, notified) "
+        "VALUES (?, ?, ?, ?, 1)",
+        (domain, _now(), str(chat_id), url),
+    )
+    conn.commit()
+    return True
+
+
+def set_unknown_shop_taken(conn, domain: str):
+    conn.execute(
+        "UPDATE unknown_shops SET taken = 1, taken_at = ? WHERE domain = ?",
+        (_now(), domain),
+    )
+    conn.commit()
+
+
+def get_unknown_shop(conn, domain: str):
+    ensure_unknown_shops_table(conn)
+    return conn.execute("SELECT * FROM unknown_shops WHERE domain = ?", (domain,)).fetchone()
+
+
+def ensure_known_shops_table(conn):
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS known_shops (
+            domain      TEXT PRIMARY KEY,
+            first_seen  TEXT NOT NULL,
+            last_ok     TEXT,
+            verified    INTEGER NOT NULL DEFAULT 0
+        )"""
+    )
+    conn.commit()
+
+
+def touch_known_shop(conn, domain: str) -> bool:
+    """Отмечает магазин как рабочий (цена успешно взята). Возвращает True,
+    если магазин стал verified ВПЕРВЫЕ (до этого не был в known_shops)."""
+    ensure_known_shops_table(conn)
+    now = _now()
+    row = conn.execute("SELECT * FROM known_shops WHERE domain = ?", (domain,)).fetchone()
+    if row:
+        conn.execute("UPDATE known_shops SET last_ok = ? WHERE domain = ?", (now, domain))
+        conn.commit()
+        return False
+    conn.execute(
+        "INSERT INTO known_shops (domain, first_seen, last_ok, verified) VALUES (?, ?, ?, 1)",
+        (domain, now, now),
+    )
+    conn.commit()
+    return True
+
+
+def list_known_shops(conn):
+    ensure_known_shops_table(conn)
+    return conn.execute(
+        "SELECT domain, first_seen, last_ok FROM known_shops WHERE verified = 1 ORDER BY domain"
+    ).fetchall()
+
+
+def list_unknown_shops(conn):
+    ensure_unknown_shops_table(conn)
+    return conn.execute(
+        "SELECT domain, taken FROM unknown_shops ORDER BY domain"
+    ).fetchall()
