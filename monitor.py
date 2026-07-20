@@ -235,6 +235,28 @@ async def _fetch_playwright(url):
 _DEEPLINK_HOSTS = ("link.silpo.ua",)
 
 
+# Магазины, где цена грузится через JS/AJAX уже ПОСЛЕ загрузки DOM
+# (старые jQuery-сайты, часть SPA без React-маркеров). Обычный requests
+# получает HTML без цены — такие URLs всегда парсим через headless-браузер.
+# НЕ путать с _PROXY_REQUIRED_HOSTS (там Cloudflare-челлендж, цену не взять
+# даже в браузере без прокси). Сюда пишем магазины, где Playwright цену БЕРЁТ.
+_PLAYWRIGHT_ALWAYS = (
+    "styx.odessa.ua",
+)
+
+
+def is_playwright_forced(url: str) -> bool:
+    """True, если магазин из URL надо всегда парсить через браузер."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return any(host == h or host.endswith("." + h) for h in _PLAYWRIGHT_ALWAYS)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # Магазины, которые НЕ парсятся ботом без резидентного прокси (Cloudflare
 # Managed Challenge и т.п. — реального контента в ответе нет, только заглушка
 # «зачекайте»). Добавлять сюда ТОЛЬКО проверенные случаи, где fetch() реально
@@ -242,6 +264,7 @@ _DEEPLINK_HOSTS = ("link.silpo.ua",)
 _PROXY_REQUIRED_HOSTS = (
     "ya.ua",
     "deka.ua",
+    "4f.ua",
 )
 
 
@@ -323,6 +346,13 @@ async def _resolve_deeplink(url: str) -> str | None:
 
 async def fetch(url: str) -> tuple[str | None, str | None]:
     """Возвращает (html, error). error=None при успехе."""
+    # магазины, где цена грузится JS/AJAX после загрузки DOM —
+    # requests не берёт, сразу идём в браузер
+    if is_playwright_forced(url):
+        html, perr = await _fetch_playwright(url)
+        if html and not _is_error_page(html):
+            return html, None
+        return None, f"не удалося завантажити (Playwright): {perr}"
     r, err = await _fetch_requests(url)
     if (r is not None and r.status_code == 200
             and not _is_cloudflare(r.text) and not _is_js_challenge(r.text)
