@@ -7,7 +7,7 @@
 - IP сервера — украинский белый (НЕ Hetzner/датацентр).
 
 ## Таблицы магазинов
-- `known_shops` (47 доменов) — белый список проверенных магазинов. Автозаполняется при успешном `check_item` (`db.touch_known_shop`). НЕ привязан к товарам юзеров.
+- `known_shops` (61 домен) — белый список проверенных магазинов. Автозаполняется при успешном `check_item` (`db.touch_known_shop`). НЕ привязан к товарам юзеров.
 - `unknown_shops` (0) — магазины, где цену не взяли, но НЕ в чёрном списке (ждут доработки парсера).
 - Чёрный список `PROXY_REQUIRED_HOSTS` в `monitor.py`: `ya.ua`, `deka.ua`, `4f.ua` (Cloudflare Managed Challenge / CDN-дроп IP — браузер без резидентного прокси не пробивает).
 - `_PLAYWRIGHT_ALWAYS` в `monitor.py`: `styx.odessa.ua` (цена грузится JS/AJAX после DOM, requests не берёт — всегда через браузер).
@@ -19,6 +19,7 @@
 - ✅ **styx.odessa.ua починен**: старый jQuery-сайт, цена грузится AJAX после DOM. Добавлен в `_PLAYWRIGHT_ALWAYS` → `fetch()` сразу в браузер. Товар #170 (2000 грн).
 - ✅ **deka.ua → чёрный список**: Cloudflare Managed Challenge, Playwright не пробивает (таймаут, «Трохи зачекайте…»).
 - ✅ **4f.ua → чёрный список**: CDN дропает IP сервера (HTTP:000, 0 байт, `ERR_HTTP2_PROTOCOL_ERROR`). Сайт с сервера недоступен.
+- ✅ **letyshops-парсинг**: спарсили список магазинов с `letyshops.com/ua/shops`, прогнали живьём через `fetch`+`extract` только NEW-магазины (без дублей). Рабочие добавлены в `known_shops`: `apteka911.ua` (5.0), `citrus.ua` (2299.0), `modnakasta.ua` (199.0), `estro.ua` (3390.0), `stylus.ua`→`stls.store` (1199.0). Не добавлены (403/DNS/не магазин): `iherb.com`, `notino.ua`, `allegro.pl`, `sinsay.ua`, `knigarnia.ua`, `budinok-igrashok.ua`, `hotline.ua`.
 - ✅ `_is_cloudflare()` расширен — ловит украиноязычную страницу проверки («Триває перевірка безпеки» / «сервіс безпеки» / «перевірка пройшла успішно»).
 - ✅ `_looks_empty_spa()` — детект React/Vue-скелета без цены → Playwright.
 
