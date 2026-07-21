@@ -46,15 +46,15 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
         )"""
     )
     conn.execute(
-        """"CREATE TABLE IF NOT EXISTS users (
-                    chat_id    TEXT PRIMARY KEY,
-                    username   TEXT,
-                    full_name  TEXT,
-                    status     TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | denied
-                    created_at TEXT NOT NULL,
-                    decided_at TEXT,
-                    link_limit INTEGER NOT NULL DEFAULT 50  -- лимит активных товаров (0 = безлимит, только для админа)
-                )"""
+        """CREATE TABLE IF NOT EXISTS users (
+            chat_id    TEXT PRIMARY KEY,
+            username   TEXT,
+            full_name  TEXT,
+            status     TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | denied
+            created_at TEXT NOT NULL,
+            decided_at TEXT,
+            link_limit INTEGER NOT NULL DEFAULT 50  -- лимит активных товаров (0 = безлимит, только для админа)
+        )"""
     )
     # миграция: добавляем колонку, если таблица уже была (безопасно при повторном запуске)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
