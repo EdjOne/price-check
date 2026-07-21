@@ -296,7 +296,7 @@ async def _ensure_access(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat_id = update.effective_chat.id
     # админ всегда проходит
     if ADMIN_ID and str(chat_id) == str(ADMIN_ID):
-        db.upsert_pending(conn, chat_id, update.effective_user.username)
+        db.upsert_pending(conn, chat_id, update.effective_user.username, update.effective_user.full_name)
         db.set_user_status(conn, chat_id, "approved")
         return True
     user = db.get_user(conn, chat_id)
@@ -305,7 +305,7 @@ async def _ensure_access(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # новый или pending/denied — регистрируем и просим апрув у админа
     is_new = user is None
     if is_new:
-        db.upsert_pending(conn, chat_id, update.effective_user.username)
+        db.upsert_pending(conn, chat_id, update.effective_user.username, update.effective_user.full_name)
     if user and user["status"] == "denied":
         await update.effective_message.reply_text("⛔ Доступ заборонено. Зверніться до власника бота.")
         return False
@@ -759,7 +759,7 @@ def main():
     db.ensure_known_shops_table(conn)
     # авто-апрув владельца бота при старте, чтобы статус не слетал после рестартов
     if ADMIN_ID:
-        db.upsert_pending(conn, ADMIN_ID, None)
+        db.upsert_pending(conn, ADMIN_ID, None, None)
         db.set_user_status(conn, ADMIN_ID, "approved")
         logger.info("Admin %s auto-approved on startup", ADMIN_ID)
     from telegram.ext import JobQueue

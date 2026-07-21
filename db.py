@@ -46,19 +46,22 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
         )"""
     )
     conn.execute(
-        """CREATE TABLE IF NOT EXISTS users (
-            chat_id    TEXT PRIMARY KEY,
-            username   TEXT,
-            status     TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | denied
-            created_at TEXT NOT NULL,
-            decided_at TEXT,
-            link_limit INTEGER NOT NULL DEFAULT 50  -- лимит активных товаров (0 = безлимит, только для админа)
-        )"""
+        """"CREATE TABLE IF NOT EXISTS users (
+                    chat_id    TEXT PRIMARY KEY,
+                    username   TEXT,
+                    full_name  TEXT,
+                    status     TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | denied
+                    created_at TEXT NOT NULL,
+                    decided_at TEXT,
+                    link_limit INTEGER NOT NULL DEFAULT 50  -- лимит активных товаров (0 = безлимит, только для админа)
+                )"""
     )
     # миграция: добавляем колонку, если таблица уже была (безопасно при повторном запуске)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
     if "link_limit" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN link_limit INTEGER NOT NULL DEFAULT 50")
+    if "full_name" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
     conn.commit()
     ensure_limit_requests_table(conn)
     return conn
@@ -68,14 +71,17 @@ def get_user(conn, chat_id: str):
     return conn.execute("SELECT * FROM users WHERE chat_id = ?", (str(chat_id),)).fetchone()
 
 
-def upsert_pending(conn, chat_id: str, username: str = None):
+def upsert_pending(conn, chat_id: str, username: str = None, full_name: str = None):
     """Регистрирует нового юзера как pending (если ещё нет)."""
     cur = conn.execute(
-        "INSERT OR IGNORE INTO users (chat_id, username, status, created_at) VALUES (?, ?, 'pending', ?)",
-        (str(chat_id), username, _now()),
+        "INSERT OR IGNORE INTO users (chat_id, username, full_name, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+        (str(chat_id), username, full_name, _now()),
     )
-    if username:
-        conn.execute("UPDATE users SET username = ? WHERE chat_id = ?", (username, str(chat_id)))
+    if username or full_name:
+        conn.execute(
+            "UPDATE users SET username = COALESCE(?, username), full_name = COALESCE(?, full_name) WHERE chat_id = ?",
+            (username, full_name, str(chat_id)),
+        )
     conn.commit()
     return cur.rowcount > 0
 
