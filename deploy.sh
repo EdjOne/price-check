@@ -18,6 +18,7 @@ rsync -az --ignore-times --delete \
   --exclude '*.db' \
   --exclude '*.db-*' \
   --exclude '*.bak' \
+  --exclude '.env' \
   --exclude 'backup.log' \
   --exclude 'bot.log' \
   --exclude 'downloaded_files' \

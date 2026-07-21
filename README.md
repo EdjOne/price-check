@@ -1,76 +1,85 @@
-# Price Check
+# 🛒 Price Check
 
-Універсальний моніторинг цін з керуванням через Telegram.
-Знайшов товар на будь-якому сайті → кинув посилання боту → бот слідкує за ціною і шле сповіщення при зміні.
+**Твій особистий мисливець за знижками — моніторинг улюблених товарів прямо в кишені.**
 
-## Що вміє
-- 🔗 Додає на моніторинг **будь-яке** посилання (маркетплейси, магазини, рандомні сайти)
-- 🤖 Авто-визначення ціни зі сторінки (JSON-LD → meta-теги → CSS-селектори → регексп по валюті)
-- 🛡 Обхід Cloudflare: якщо сайт блокує (403 / «Just a moment»), ціна береться через headless-браузер (Playwright).
-  ⚠️ Жорсткий **Cloudflare Managed Challenge** (з Ray ID, як на maudau.com.ua) легко не обходиться — бот чесно повідомить «Cloudflare/защита сайта».
-  Причина: сервер з датацентрівським IP (Hetzner) режеться Cloudflare на рівні репутації підмережі. Перевірені методи, що **НЕ** працюють: requests+UA, Playwright, Playwright+stealth, SeleniumBase UC Mode, puppeteer/FlareSolverr.
-  ✅ Реально допомагає лише **резидентний проксі** (живий домашній IP) — див. налаштування `PROXY_URL` нижче.
-- ⏰ Періодична перевірка (кожні N годин, налаштовується)
-- 🔔 Сповіщення в Telegram при зміні/падінні ціни
-- 📜 Історія цін по кожному товару
-- 📋 **Клікабельний список** (`/list`): кнопки 🔗 відкрити / 📜 історія / 🗑 видалити (з підтвердженням), відсортовано за назвою товару
+Знайшов товар, але ціна кусається? Кидай посилання боту — і він сам слідкує, коли впаде. Працює в фоні, не відволікає, допоки не з'явиться класна ціна.
 
-## Як користуватися
-1. Створи бота у [@BotFather](https://t.me/BotFather) і отримай токен.
-2. `cp .env.example .env` і впиши `BOT_TOKEN`.
-3. Встанови залежності та запусти:
-   ```bash
-   pip install -r requirements.txt
-   python -m playwright install chromium
-   python bot.py
-   ```
-4. У Telegram боті:
-   - просто надішли посилання на товар → бот візьме його на моніторинг
-   - `/list` — твої товари (кнопки: відкрити / історія / видалити)
-   - `/remove <id>` — прибрати
-   - `/check` — перевірити всі зараз
-   - `/history <id>` — історія цін
+👉 [**@pricech_bot**](https://t.me/pricech_bot)
 
-## Автозапуск (systemd)
-Створи `/etc/systemd/system/price-check.service`:
-```ini
-[Unit]
-Description=Price Check Telegram bot
-After=network.target
+---
 
-[Service]
-Type=simple
-WorkingDirectory=/root/price-check
-ExecStart=/usr/local/lib/hermes-agent/venv/bin/python3 bot.py
-Restart=on-failure
-RestartSec=5
+## 📌 Як це працює
 
-[Install]
-WantedBy=multi-user.target
-```
-Запуск:
+1. **Кидаєш** боту посилання на товар з будь-якого магазину
+2. Бот **4 рази на день** (вранці, в обід, увечері, вночі) сам перевіряє ціну
+3. Як тільки ціна **впала** — одразу пише тобі в Telegram 📉
+
+## 🏪 Ловить ціни в 97+ магазинах України й світу
+
+Техніка, одяг, косметика, ліки, іграшки, їжа, алкоголь, зоотовари, книги — бот читає майже всі популярні сайти.
+
+**Продукти:** Сільпо, ATB, VARUS, Fozzy, Metro, Zakaz, Obzhora, Fora, Eko
+**Електроніка:** Rozetka, Citrus, Stylus, MOYO, Telemart, Eldorado
+**Одяг:** Comfy, Intertop, ANSWEAR, Mango (md-fashion), Jysk
+**Аптеки:** Аптека 911, Єва, Місто здоров'я
+**Косметика:** Brocard, Kasta (modnakasta)
+**Маркетплейси:** OLX, Prom, Maudau
+**Книги:** Bookvoed, Nash Format, Book-ye
+**Зоотовари:** MasterZoo, TerraPet, E-ZOO
+...і ще десятки інших.
+
+## 🔔 Сповіщення про зміну ціни
+
+Бот не спамить. Він мовчить, поки ціна не зміниться. А коли зміниться — напише: скільки було, скільки стало, і дасть посилання.
+
+## 📋 Зручний список
+
+Команда `/list` показує всі твої товари з кнопками:
+- 📜 **Історія** цін — динаміка за всі перевірки
+- 🗑 **Видалити** — прибрав, наступного разу знадобиться — додаси знову
+
+Товари автоматично групуються: якщо слідкуєш за одним товаром у різних магазинах — бот покаже ✅ біля найдешевшого варіанту.
+
+## 💡 Навіщо це потрібно
+
+- Стежиш за новою технікою (iPhone, MacBook, навушники) — бот впіймає знижку
+- Купуєш продукти/алкоголь — бот покаже, де дешевше
+- Замовляєш косметику/ліки — не дасть купити завищено
+- Полюєш на книги, іграшки, зоотовари — бот тримає руку на пульсі
+
+## ✅ Безкоштовно · Без реклами · Працює у фоні
+
+Жодних підписок, жодної реклами. Просто кинув посилання — і забув. Бот сам усе перевірить і напише, коли ціна порадує.
+
+👉 [**@pricech_bot**](https://t.me/pricech_bot) — пиши в приватку, кидай посилання, погнали ловити ціни 🚀
+
+---
+
+## Для розробників
+
+Стек: Python, `python-telegram-bot` 22+, SQLite, Playwright (Chromium), BeautifulSoup.
+
+### Швидкий старт
 ```bash
-systemctl daemon-reload
-systemctl enable --now price-check
+git clone https://github.com/EdjOne/price-check.git
+cd price-check
+cp .env.example .env  # впиши BOT_TOKEN
+pip install -r requirements.txt
+python -m playwright install chromium
+python bot.py
 ```
-⚠️ Один токен може полити лише **один** екземпляр — не запускай паралельно `python bot.py` і systemd.
 
-## Налаштування (.env)
-| Змінна | За замовчуванням | Опис |
-|--------|------------------|------|
-| `BOT_TOKEN` | — | токен від BotFather (обов'язково) |
-| `CHECK_INTERVAL_HOURS` | `6` | інтервал авто-перевірки, годин |
-| `DB_PATH` | `price_check.db` | файл бази SQLite |
-| `PROXY_URL` | _(порожньо)_ | резидентний HTTP(S)/SOCKS-проксі для обходу Cloudflare Managed Challenge (напр. `http://user:pass@host:port`). Без нього сайти на кшталт maudau.com.ua дадуть помилку. |
+### Структура
+- `bot.py` — Telegram-бот (хендлери, клавіатури, меню команд)
+- `parser.py` — детект ціни з HTML (JSON-LD → meta → CSS → регексп)
+- `monitor.py` — fetch (requests + Playwright fallback), перевірка, алерти
+- `db.py` — SQLite (товари, історія, юзери, known shops)
 
-## Структура
-- `parser.py` — авто-детект ціни/назви з HTML
-- `db.py` — SQLite (товари + історія цін)
-- `monitor.py` — fetch (requests + Playwright-фолбек) + перевірка + алерти
-- `bot.py` — Telegram-бот (python-telegram-bot 22), клікабельний список
-- `price-check.service` — systemd-юніт
-
-## Перевірити парсер окремо
-```bash
-python parser.py https://example.com/product
-```
+### Команди
+| Команда | Опис |
+|---------|------|
+| `/list` | Список товарів з кнопками |
+| `/shops` | Які магазини підтримуються |
+| `/history <id>` | Історія цін |
+| `/clear` | Очистити чат |
+| `/help` | Довідка |
