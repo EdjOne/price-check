@@ -6,7 +6,6 @@
   (или просто прислать ссылку)
   /list          — список (кликабельный, с кнопками: открыть / история / удалить)
   /remove <id>   — убрать товар
-  /check         — принудительно проверить всё сейчас
   /history <id>  — история цен
   /shops         — список поддерживаемых и неподдерживаемых магазинов
 """
@@ -51,7 +50,6 @@ HELP = (
     "Коли ціна зміниться, прийде сповіщення.\n\n"
     "Команди:\n"
     "• /list — мої товари (кнопки: відкрити / історія / видалити)\n"
-    "• /check — перевірити всі зараз\n"
     "• /shops — які магазини бот уміє читати\n"
     "• /clear — очистити чат від повідомлень\n"
     "• /history &lt;id&gt; — історія цін\n"
@@ -593,7 +591,9 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def check_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await _ensure_access(update, context):
+    # тільки для адміна
+    if str(update.effective_chat.id) != ADMIN_ID:
+        await update.message.reply_text("⛔ Команда тільки для адміна.")
         return
     conn = context.bot_data["conn"]
     await update.message.reply_text("🔄 Перевіряю всі товари…")
@@ -742,7 +742,6 @@ async def post_init(app: Application):
     db.ensure_admin_unlimited(app.bot_data["conn"], ADMIN_ID)
     await app.bot.set_my_commands([
         BotCommand("list", "📋 Мої товари"),
-        BotCommand("check", "🔄 Перевірити всі ціни зараз"),
         BotCommand("shops", "🛒 Які магазини підтримуються"),
         BotCommand("clear", "🧹 Очистити чат"),
         BotCommand("history", "📜 Історія цін (/history <id>)"),
