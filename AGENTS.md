@@ -12,11 +12,12 @@
 - `known_shops` (98 доменов) — белый список проверенных магазинов.
 - `unknown_shops` (0) — магазины, где цену не взяли, но НЕ в чёрном списке.
 - Чёрный список `PROXY_REQUIRED_HOSTS` в `monitor.py`: `ya.ua`, `deka.ua`, `4f.ua`, `hm.com`.
-- `_PLAYWRIGHT_ALWAYS` в `monitor.py`: `styx.odessa.ua`.
+- `_PLAYWRIGHT_ALWAYS` в `monitor.py`: `styx.odessa.ua`, `primeauto.com.ua`.
 
 ## Что сделано за сессию (2026-07-22)
 - ✅ **pending_urls** — новая таблица + логика: если юзер не аппрувнут, ссылка сохраняется в БД. После аппрува админом — все сохранённые ссылки автоматически обрабатываются (добавляются на мониторинг с проверкой цены). Работает и для обычного ввода ссылки, и для `/add <url>`.
 - ✅ v1.8.4: закоммичено, запушено, задеплоено, сервис рестартнут.
+- ✅ v1.8.5: primeauto.com.ua (кастомний JS-challenge) — додано в _PLAYWRIGHT_ALWAYS + retry goto в _fetch_playwright після location.reload. Ціна береться: 1302 UAH.
 
 ## Универсальные фиксы парсера (накоплено)
 - `_is_js_challenge()` — кастомный JS-челлендж (biom.ua: `challenge_passed` + reload).
