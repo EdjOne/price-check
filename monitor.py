@@ -223,6 +223,26 @@ async def _fetch_playwright(url):
                 except Exception:  # noqa: BLE001
                     pass
             html = await page.content()
+
+            # JS-challenge (primeauto, biom та ін.): після location.reload
+            # сторінка має завантажитися знову. Якщо перший прохід дав
+            # challenge-заглушку — робимо другий goto (з cookie).
+            if html and _is_js_challenge(html):
+                logger.info(
+                    "_fetch_playwright %s: challenge-заглушка, retry goto",
+                    url,
+                )
+                try:
+                    await page.goto(url, wait_until="domcontentloaded",
+                                    timeout=30000)
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    await page.wait_for_timeout(3000)
+                except Exception:  # noqa: BLE001
+                    pass
+                html = await page.content()
+
             await browser.close()
             return html, None
     except Exception as exc:  # noqa: BLE001
@@ -242,6 +262,7 @@ _DEEPLINK_HOSTS = ("link.silpo.ua",)
 # даже в браузере без прокси). Сюда пишем магазины, где Playwright цену БЕРЁТ.
 _PLAYWRIGHT_ALWAYS = (
     "styx.odessa.ua",
+    "primeauto.com.ua",
 )
 
 

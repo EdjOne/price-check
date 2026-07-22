@@ -1,39 +1,22 @@
 # Price Check — AGENTS.md
 
-## Статус (на 2026-07-21)
+## Статус (на 2026-07-22)
 - Сервер: Andrew, папка `/mnt/backup/price-check`, systemd `price-check` (User=andrew)
-- База: `price_check.db` (SQLite), 9 юзеров, 29 активных товаров
+- База: `price_check.db` (SQLite), 11 юзеров, 33 активных товара
 - Бот `active`. Расписание проверок — **фиксированное по Киеву**: 08:00, 12:00, 17:00, 23:00.
 - IP сервера — украинский белый.
 - `ADMIN_ID=311174242` в `.env` на сервере (уведомления админу работают)
 - `deploy.sh` — добавлен `--exclude '.env'` (не сносит серверный `.env`)
 
 ## Таблицы магазинов
-- `known_shops` (98 доменов) — белый список проверенных магазинов. Автозаполняется при успешном `check_item` (`db.touch_known_shop`). НЕ привязан к товарам юзеров.
-- `unknown_shops` (0) — магазины, где цену не взяли, но НЕ в чёрном списке (ждут доработки парсера).
-- Чёрный список `PROXY_REQUIRED_HOSTS` в `monitor.py`: `ya.ua`, `deka.ua`, `4f.ua`, `hm.com` (Cloudflare Managed Challenge / CDN-дроп IP / Akamai — браузер без резидентного прокси не пробивает).
-- `_PLAYWRIGHT_ALWAYS` в `monitor.py`: `styx.odessa.ua` (цена грузится JS/AJAX после DOM, requests не берёт — всегда через браузер).
+- `known_shops` (98 доменов) — белый список проверенных магазинов.
+- `unknown_shops` (0) — магазины, где цену не взяли, но НЕ в чёрном списке.
+- Чёрный список `PROXY_REQUIRED_HOSTS` в `monitor.py`: `ya.ua`, `deka.ua`, `4f.ua`, `hm.com`.
+- `_PLAYWRIGHT_ALWAYS` в `monitor.py`: `styx.odessa.ua`.
 
-## Что сделано за сессию (2026-07-21)
-- ✅ `/check` — только для админа (убрано из меню, HELP, блок для не-админов)
-- ✅ `ADMIN_ID` добавлен в серверный `.env` (не было — уведомления не летели)
-- ✅ `deploy.sh` — `--exclude '.env'` (чтобы деплой не сносил ADMIN_ID)
-- ✅ `full_name` колонка в `users` (сохраняется имя при регистрации, + бэкфилл)
-- ✅ Почищены неактивные товары: 3 реактивировано (styx, itmag), 6 удалено (ya.ua, deka.ua, 4f.ua, letyshops, hm.com, leroymerlin)
-- ✅ Обновлён README.md — промо-текст с акцентом «в кишені», ссылка @pricech_bot
-- ✅ Протестированы уведомления админу — работают
-- ✅ Команда `/shops` — показывает юзеру: поддерживаемые (`known_shops`) + неподдерживаемые (`PROXY_REQUIRED_HOSTS`) + неизвестные (`unknown_shops`). Добавлена в HELP, docstring и меню команд Telegram (`set_my_commands`).
-- ✅ Таблица `known_shops` — отдельный белый список проверенных магазинов (создаётся в `db.ensure_known_shops_table`, вызывается при старте).
-- ✅ **fora.ua починен (SPA)**: requests отдаёт пустой React-скелет → `_looks_empty_spa()` форсит Playwright → `wait_for_function` ждёт паттерн `\d+грн/₴/UAH` → цена из ld+json `offers.price` (актуальная, не зачёркнутая). Товар #150 реактивирован.
-- ✅ **styx.odessa.ua починен**: старый jQuery-сайт, цена грузится AJAX после DOM. Добавлен в `_PLAYWRIGHT_ALWAYS` → `fetch()` сразу в браузер. Товар #170 (2000 грн).
-- ✅ **deka.ua → чёрный список**: Cloudflare Managed Challenge, Playwright не пробивает (таймаут, «Трохи зачекайте…»).
-- ✅ **4f.ua → чёрный список**: CDN дропает IP сервера (HTTP:000, 0 байт, `ERR_HTTP2_PROTOCOL_ERROR`). Сайт с сервера недоступен.
-- ✅ **letyshops-парсинг**: спарсили список магазинов с `letyshops.com/ua/shops`, прогнали живьём через `fetch`+`extract` только NEW-магазины (без дублей). Рабочие добавлены в `known_shops`: `apteka911.ua` (5.0), `citrus.ua` (2299.0), `modnakasta.ua` (199.0), `estro.ua` (3390.0), `stylus.ua`→`stls.store` (1199.0). Не добавлены (403/DNS/не магазин): `iherb.com`, `notino.ua`, `allegro.pl`, `sinsay.ua`, `knigarnia.ua`, `budinok-igrashok.ua`, `hotline.ua`.
-- ✅ **itmag.ua починен**: `_is_cloudflare()` ложно срабатывал на маркер `challenge-platform` (есть в обычном JS сайта, не только в челлендже Cloudflare) → `fetch` уходил в Playwright и зависал (45с). Убрал `challenge-platform` как отдельный маркер (оставил точные `cf-chl`/`__cf_chl`/укр-фразы). Теперь itmag.ua парсится через requests за ~1с (цена в `<span class="product-price">`). Товар #187 (499 UAH).
-- ✅ **skay.ua работает**: цена 5799 UAH через requests. Товар #192, добавлен в `known_shops`.
-- ✅ **hm.com → чёрный список**: Akamai (`AkamaiGHost`, `edgesuite.net`) банит IP сервера — `403 Access Denied` и в requests, и в Playwright. Сайт недоступен.
-- ✅ `_looks_empty_spa()` — детект React/Vue-скелета без цены → Playwright.
-- ✅ **Лимиты на юзера (50 + запросы +10)**: таблица `users.link_limit` (дефолт 50, админ = 0 безлимит через `ensure_admin_unlimited` в `post_init`). При добавлении 51-й ссылки (`count_active >= limit`) юзер получает кнопку «➕ Запитати +10» → админу прилетает уведомление (Имя/ID + сколько на мониторинге + лимит) с кнопками «✅ Підтвердити +10» / «❌ Відхилити». Аппрув → `bump_link_limit(+10)`, юзеру «✅ Вам підтверджено +10». Один открытый запрос на юзера (`limit_requests` table). Считаются только **активные** товары (удалил → слот освободился). Тестировано e2e (юзер Liliya).
+## Что сделано за сессию (2026-07-22)
+- ✅ **pending_urls** — новая таблица + логика: если юзер не аппрувнут, ссылка сохраняется в БД. После аппрува админом — все сохранённые ссылки автоматически обрабатываются (добавляются на мониторинг с проверкой цены). Работает и для обычного ввода ссылки, и для `/add <url>`.
+- ✅ v1.8.4: закоммичено, запушено, задеплоено, сервис рестартнут.
 
 ## Универсальные фиксы парсера (накоплено)
 - `_is_js_challenge()` — кастомный JS-челлендж (biom.ua: `challenge_passed` + reload).
