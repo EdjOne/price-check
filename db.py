@@ -183,6 +183,41 @@ def add_item(conn, url: str, chat_id: str, title: Optional[str] = None,
     return cur.lastrowid
 
 
+# ── Неподтверждённые ссылки (от юзеров до аппрува) ─────────────────────
+
+
+def ensure_pending_urls_table(conn):
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS pending_urls (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id     TEXT NOT NULL,
+            url         TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        )"""
+    )
+    conn.commit()
+
+
+def add_pending_url(conn, chat_id: str, url: str):
+    conn.execute(
+        "INSERT INTO pending_urls (chat_id, url, created_at) VALUES (?, ?, ?)",
+        (str(chat_id), url, _now()),
+    )
+    conn.commit()
+
+
+def get_pending_urls(conn, chat_id: str):
+    return conn.execute(
+        "SELECT * FROM pending_urls WHERE chat_id = ? ORDER BY id",
+        (str(chat_id),),
+    ).fetchall()
+
+
+def clear_pending_urls(conn, chat_id: str):
+    conn.execute("DELETE FROM pending_urls WHERE chat_id = ?", (str(chat_id),))
+    conn.commit()
+
+
 def get_item(conn, item_id: int):
     return conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
 

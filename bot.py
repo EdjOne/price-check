@@ -188,8 +188,6 @@ async def _add_url(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str,
 
 
 async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await _ensure_access(update, context):
-        return
     if not context.args:
         await update.message.reply_text("Вкажіть посилання: /add https://...")
         return
@@ -197,19 +195,35 @@ async def add_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not URL_RE.match(url):
         await update.message.reply_text("Це не схоже на посилання (потрібен http/https).")
         return
+    if not await _ensure_access(update, context):
+        conn = context.bot_data["conn"]
+        db.add_pending_url(conn, update.effective_chat.id, url)
+        await update.message.reply_text(
+            "🔗 Посилання збережено! Після підтвердження доступу "
+            "воно автоматично додасться на моніторинг ✅"
+        )
+        return
     await _add_url(update, context, url, update.effective_chat.id)
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await _ensure_access(update, context):
-        return
     # склеиваем переносы строк — чтобы URL, разбитый при вставке, восстановился
     text = (update.message.text or "").replace("\n", "").replace("\r", "")
     m = URL_RE.search(text)
     if not m:
         await update.message.reply_text("Надішліть посилання на товар або /help.")
         return
-    await _add_url(update, context, m.group(0), update.effective_chat.id)
+    url = m.group(0)
+    if not await _ensure_access(update, context):
+        # юзер не аппрувнут — сохраняем ссылку, обработается после аппрува
+        conn = context.bot_data["conn"]
+        db.add_pending_url(conn, update.effective_chat.id, url)
+        await update.message.reply_text(
+            "🔗 Посилання збережено! Після підтвердження доступу "
+            "воно автоматично додасться на моніторинг ✅"
+        )
+        return
+    await _add_url(update, context, url, update.effective_chat.id)
 
 
 _STORE_TLDS = {"ua", "com", "net", "org", "co", "io", "gov", "edu",
@@ -341,6 +355,54 @@ async def cb_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                       text="✅ Доступ відкрито! Можете користуватись ботом.")
     except Exception:  # noqa: BLE001
         pass
+    # ── обробляємо збережені посилання ─────────────────────
+    pending = db.get_pending_urls(conn, chat_id)
+    if pending:
+        processed = 0
+        for pu in pending:
+            try:
+                # емулируем _add_url: подменяем update на фейковый контекст
+                item_id = db.add_item(conn, pu["url"], chat_id)
+                checking_msg = await context.bot.send_message(
+                    chat_id=int(chat_id),
+                    text="🔄 Автоматично перевіряю збережене посилання…",
+                )
+                item = db.get_item(conn, item_id)
+                res = await monitor.check_item(conn, item, bot=context.bot)
+                if res.get("ok"):
+                    if res.get("direction") == "new":
+                        await context.bot.send_message(
+                            chat_id=int(chat_id),
+                            text=(
+                                "✅ Додано #" + str(item_id)
+                                + "\n📦 " + (item["title"] or pu["url"])
+                                + "\n💰 " f"{res['new']:.2f} {res['currency']}"
+                            ),
+                        )
+                    else:
+                        await context.bot.send_message(
+                            chat_id=int(chat_id),
+                            text=f"✅ Оновлено #{item_id}: {res['new']:.2f} {res['currency']}",
+                        )
+                else:
+                    domain = monitor.shop_domain(pu["url"])
+                    conn.execute(
+                        "UPDATE items SET shop_status = 'unknown', active = 0 WHERE id = ?", (item_id,)
+                    )
+                    conn.commit()
+                    await context.bot.send_message(
+                        chat_id=int(chat_id),
+                        text=f"⚠️ Посилання #{item_id} додано, але ціну не вдалося визначити ({res.get('error')}).",
+                    )
+                try:
+                    await checking_msg.delete()
+                except Exception:  # noqa: BLE001
+                    pass
+                processed += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Failed to auto-process pending url for %s: %s", chat_id, e)
+        db.clear_pending_urls(conn, chat_id)
+        logger.info("Auto-processed %d pending URLs for user %s", processed, chat_id)
 
 
 async def cb_deny(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -754,9 +816,10 @@ def main():
     if not BOT_TOKEN:
         raise SystemExit("❌ Не задано BOT_TOKEN (середовище або .env)")
     conn = db.connect()
-    # ensure unknown_shops + known_shops tables exist at startup
+    # ensure all needed tables exist at startup
     db.ensure_unknown_shops_table(conn)
     db.ensure_known_shops_table(conn)
+    db.ensure_pending_urls_table(conn)
     # авто-апрув владельца бота при старте, чтобы статус не слетал после рестартов
     if ADMIN_ID:
         db.upsert_pending(conn, ADMIN_ID, None, None)
