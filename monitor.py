@@ -180,30 +180,60 @@ async def _fetch_playwright(url):
     try:
         from urllib.parse import urlparse
         tld = (urlparse(url).netloc.split(".")[-1] or "").lower()
-        # для молдавских сайтов — локаль браузера молдавская
-        md = tld == "md"
+
+        # Для большинства сайтов — --headless=new (лучше проходит Amazon и др.).
+        # Для AWS WAF (makeup.com.ua) — старый headless=True (--headless=new
+        # детектится WAF и отдаёт заглушку).
+        use_old_headless = _is_headless_old(url)
+        # Определяем локаль и таймзону по TLD сайта (для Amazon и др.)
+        tld_locale = {
+            "pl": "pl-PL",
+            "de": "de-DE",
+            "fr": "fr-FR",
+            "it": "it-IT",
+            "es": "es-ES",
+            "uk": "uk-UA",
+            "ua": "uk-UA",
+            "md": "ro-MD",
+        }
+        tld_tz = {
+            "pl": "Europe/Warsaw",
+            "de": "Europe/Berlin",
+            "fr": "Europe/Paris",
+            "it": "Europe/Rome",
+            "es": "Europe/Madrid",
+            "uk": "Europe/Kyiv",
+            "ua": "Europe/Kyiv",
+            "md": "Europe/Chisinau",
+        }
+        locale_str = tld_locale.get(tld, "uk-UA")
+        timezone_str = tld_tz.get(tld, "Europe/Kyiv")
+        # Для Amazon используем современный Chrome 130, иначе 124
+        is_amazon = "amazon." in urlparse(url).netloc.lower()
+        ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" if is_amazon
+              else HEADERS["User-Agent"])
         launch_kwargs = {
-            # headless=True (НЕ --headless=new!): AWS WAF и ряд других
-            # JS-челленджей детектят --headless=new и блокируют браузер.
-            # Старый headless=True + AutomationControlled off проходит чище.
-            "headless": True,
+            "headless": False,  # не используем логическое headless — вместо этого args
             "args": [
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled",
             ],
         }
+        if not use_old_headless:
+            launch_kwargs["args"].append("--headless=new")
+        else:
+            launch_kwargs["headless"] = True
+
         if PROXY_URL:
             launch_kwargs["proxy"] = {"server": PROXY_URL}
         async with async_playwright() as p:
             browser = await p.chromium.launch(**launch_kwargs)
             ctx = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                ),
-                locale="ro-MD" if md else "uk-UA",
-                timezone_id="Europe/Chisinau" if md else "Europe/Kyiv",
+                user_agent=ua,
+                locale=locale_str,
+                timezone_id=timezone_str,
                 viewport={"width": 1366, "height": 768},
                 # NB: НЕ ставим extra_http_headers (Sec-CH-UA и т.п.) —
                 # AWS WAF их детектит как бота и отдаёт JS-заглушку.
@@ -231,7 +261,7 @@ async def _fetch_playwright(url):
                     "|javascript is disabled|awswafintegration/i.test((t + h).toLowerCase()); "
                     "if (!clean) return false; "
                     "const hasNode = document.querySelectorAll('[class*=price], h1, [itemprop=name]').length > 0; "
-                    "const hasPriceText = /\\d[\\d\\s.,]*\\s*(грн|₴|uah)/i.test(t); "
+                    "const hasPriceText = /\\d[\\d\\s.,]*\\s*(грн|₴|uah|zł|pln|€|$)/i.test(t); "
                     "return hasNode || hasPriceText; }",
                     timeout=30000,
                 )
@@ -272,6 +302,25 @@ async def _fetch_playwright(url):
 # не содержат товар — нужно выполнить JS-редирект через headless-браузер,
 # чтобы получить реальный URL товара.
 _DEEPLINK_HOSTS = ("link.silpo.ua",)
+
+
+# Магазины, которые НЕ проходят даже `--headless=new` — нужен старый
+# headless=True (без аргумента --headless). Пока только AWS WAF (makeup.com.ua).
+_HEADLESS_OLD_HOSTS = (
+    "makeup.com.ua",
+)
+
+
+def _is_headless_old(url: str) -> bool:
+    """True, если магазин надо запускать со старым headless=True."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return any(host == h or host.endswith("." + h) for h in _HEADLESS_OLD_HOSTS)
+    except Exception:
+        return False
 
 
 # Магазины, где цена грузится через JS/AJAX уже ПОСЛЕ загрузки DOM
