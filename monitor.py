@@ -281,6 +281,7 @@ _DEEPLINK_HOSTS = ("link.silpo.ua",)
 # даже в браузере без прокси). Сюда пишем магазины, где Playwright цену БЕРЁТ.
 _PLAYWRIGHT_ALWAYS = (
     "styx.odessa.ua",
+    "amazon.pl",
 )
 
 
