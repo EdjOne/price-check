@@ -61,21 +61,39 @@ def _is_cloudflare(html: str) -> bool:
             or "перевірка безпеки" in h and "не бот" in h)
 
 
+_JS_CHALLENGE_COOKIE_RE = re.compile(
+    r'(?:const\s+defaultHash\s*=\s*"|"challenge_passed"\s*\+\s*)([a-f0-9]+)'
+)
+
+
+def _js_challenge_cookie(html: str) -> str | None:
+    """Извлекает хеш из JS-challenge и возвращает cookie-строку.
+
+    Если страница — примитивный JS-challenge (primeauto.com.ua, biom.ua),
+    возвращает "challenge_passed=<хеш>", иначе None.
+    Такой челлендж можно обойти без браузера: извлечь хеш, установить куку,
+    перезапросить.
+    """
+    if not html:
+        return None
+    m = _JS_CHALLENGE_COOKIE_RE.search(html)
+    if m:
+        return f"challenge_passed={m.group(1)}"
+    return None
+
+
 def _is_js_challenge(html: str) -> bool:
     """Кастомный JS-челлендж магазина (не Cloudflare).
 
     Сайт отдаёт крошечную HTML-заглушку со скриптом, который крутит
     цикл, ставит cookie (напр. challenge_passed) и делает reload.
     Признаки: короткий body + скрипт с document.cookie и location.reload().
-    Такие страницы надо отдавать в headless-браузер (Playwright), который
-    выполнит JS и получит реальный контент.
     """
     if not html:
         return False
     h = html.lower()
     cookie_set = "document.cookie" in h
     reloads = "location.reload" in h or "location.href" in h
-    # типичный маркер собственного челленджа biom.ua и ему подобных
     known_marker = "challenge_passed" in h
     # AWS WAF JavaScript challenge (makeup.com.ua и др.)
     aws_waf = "awswafintegration" in h or "awsWafCookieDomainList" in h
@@ -139,10 +157,11 @@ def _is_error_page(html: str, title: str | None = None) -> bool:
                                    "сторінка не знайдена"))
 
 
-async def _fetch_requests(url):
+async def _fetch_requests(url, extra_cookies=None):
     try:
         r = await asyncio.to_thread(
-            requests.get, url, headers=HEADERS, timeout=TIMEOUT, proxies=_proxies()
+            requests.get, url, headers=HEADERS, timeout=TIMEOUT,
+            proxies=_proxies(), cookies=extra_cookies,
         )
         return r, None
     except Exception as exc:  # noqa: BLE001
@@ -262,7 +281,6 @@ _DEEPLINK_HOSTS = ("link.silpo.ua",)
 # даже в браузере без прокси). Сюда пишем магазины, где Playwright цену БЕРЁТ.
 _PLAYWRIGHT_ALWAYS = (
     "styx.odessa.ua",
-    "primeauto.com.ua",
 )
 
 
@@ -367,24 +385,67 @@ async def _resolve_deeplink(url: str) -> str | None:
         return None
 
 
+async def _fetch_with_challenge_bypass(url: str) -> str | None:
+    """Пробует обойти примитивный JS-challenge через requests + cookie.
+
+    Некоторые магазины (primeauto.com.ua, biom.ua) отдают JS-заглушку,
+    которая ставит cookie и reload'ит страницу. Хеш можно извлечь из
+    скрипта, установить куку и перезапросить — без Playwright.
+    """
+    try:
+        r, _ = await _fetch_requests(url)
+        if r is None:
+            return None
+        if not _is_js_challenge(r.text):
+            return None  # не челлендж — пусть обработчик решает
+        c = _js_challenge_cookie(r.text)
+        if not c:
+            return None
+        logger.info("_fetch_with_challenge_bypass %s: кука %s", url, c)
+        # парсим "challenge_passed=abc" в {"challenge_passed": "abc"}
+        parts = c.split("=", 1)
+        cookie_dict = {parts[0]: parts[1]} if len(parts) == 2 else None
+        if not cookie_dict:
+            return None
+        # повторный запрос с кукой
+        r2, _ = await _fetch_requests(url, extra_cookies=cookie_dict)
+        if r2 is None:
+            return None
+        if _is_js_challenge(r2.text) or _is_cloudflare(r2.text):
+            return None
+        return r2.text
+    except Exception as exc:
+        logger.warning("_fetch_with_challenge_bypass %s: %s", url, exc)
+        return None
+
+
 async def fetch(url: str) -> tuple[str | None, str | None]:
     """Возвращает (html, error). error=None при успехе."""
     # магазины, где цена грузится JS/AJAX после загрузки DOM —
-    # requests не берёт, сразу идём в браузер
+    # requests не берёт, сразу идём в браузер. Но сначала пробуем
+    # обойти примитивный JS-challenge через requests + cookie.
     if is_playwright_forced(url):
+        html = await _fetch_with_challenge_bypass(url)
+        if html:
+            return html, None
         html, perr = await _fetch_playwright(url)
         if html and not _is_error_page(html):
             return html, None
         return None, f"не удалося завантажити (Playwright): {perr}"
     r, err = await _fetch_requests(url)
-    if (r is not None and r.status_code == 200
-            and not _is_cloudflare(r.text) and not _is_js_challenge(r.text)
-            and not _looks_empty_spa(r.text)):
-        # доп. защита: страница ошибки с кодом 200 (редко)
-        if not _is_error_page(r.text):
-            return r.text, None
-        logger.warning("fetch %s: страница-ошибка (200) — не берём", url)
-        return None, "сторінка не знайдена (404/помилка)"
+    if r is not None and r.status_code == 200:
+        # проверка: если это JS-challenge — пробуем обойти
+        if _is_js_challenge(r.text):
+            html = await _fetch_with_challenge_bypass(url)
+            if html:
+                return html, None
+            # не вышло — падаем в Playwright ниже
+        elif not _is_cloudflare(r.text) and not _looks_empty_spa(r.text):
+            # доп. защита: страница ошибки с кодом 200 (редко)
+            if not _is_error_page(r.text):
+                return r.text, None
+            logger.warning("fetch %s: страница-ошибка (200) — не берём", url)
+            return None, "сторінка не знайдена (404/помилка)"
     if r is not None and r.status_code != 200:
         # 404/5xx нельзя вылечить браузером — не тратим время на Playwright
         if r.status_code == 404:
