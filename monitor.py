@@ -554,7 +554,19 @@ async def check_item(conn, item, bot=None) -> dict:
 
     # магазин реально отдал цену — отмечаем как проверенный (known_shops)
     try:
-        db.touch_known_shop(conn, shop_domain(url))
+        was_new = db.touch_known_shop(conn, shop_domain(url))
+        # если магазин был НЕИЗВЕСТНЫМ и теперь заработал — чистим очереди
+        if was_new:
+            domain = shop_domain(url)
+            # убираем из unknown_shops
+            conn.execute("DELETE FROM unknown_shops WHERE domain = ?", (domain,))
+            # переводим все товары этого магазина с unknown → known
+            conn.execute(
+                "UPDATE items SET shop_status='known' WHERE url LIKE ? AND shop_status='unknown'",
+                (f"%{domain}%",),
+            )
+            conn.commit()
+            logger.info("shop %s — перенесён из unknown в known (авто)", domain)
     except Exception:  # noqa: BLE001
         pass
 
