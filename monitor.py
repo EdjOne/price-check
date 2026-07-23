@@ -357,6 +357,7 @@ _PROXY_REQUIRED_HOSTS = (
     "hm.com",
     "leroymerlin.ua",
     "allegro.pl",
+    "carrefour.ro",
 )
 
 

@@ -21,20 +21,23 @@ CURRENCY_MAP = {
     "€": "EUR", "eur": "EUR", "євро": "EUR", "евро": "EUR",
     "₽": "RUB", "руб": "RUB", "ruble": "RUB", "rub": "RUB",
     "zł": "PLN", "pln": "PLN", "злот": "PLN",
-    "lei": "MDL", "mdl": "MDL", "леев": "MDL", "лея": "MDL",
+    "lei": None, "leu": None,  # RON или MDL — разрешается по TLD
+    "ron": "RON", "mdl": "MDL",
+    "леев": "MDL", "лея": "MDL",
 }
 
 # Домен верхнего уровня -> валюта по умолчанию (если на странице не найдена)
 TLD_CURRENCY = {
     "ua": "UAH", "md": "MDL", "ru": "RUB", "by": "BYN",
-    "pl": "PLN", "de": "EUR", "eu": "EUR", "fr": "EUR",
-    "com": None, "net": None, "org": None,  # без гео — оставляем None
+    "pl": "PLN", "ro": "RON",
+    "de": "EUR", "eu": "EUR", "fr": "EUR", "it": "EUR", "es": "EUR",
+    "com": None, "net": None, "org": None,
 }
 
 # Маркери валюти: символи + слова (шукаємо число поряд)
 CURRENCY_MARKERS = ["₴", "$", "€", "₽", "zł",
                     "грн", "грив", "руб", "дол", "євро", "евро",
-                    "uah", "usd", "eur", "rub", "pln", "lei", "mdl"]
+                    "uah", "usd", "eur", "rub", "pln", "lei", "leu", "ron", "mdl"]
 
 
 def _currency_from_tld(url: str | None) -> str | None:
